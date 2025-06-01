@@ -12,11 +12,11 @@ import AVFoundation
 
 class CameraViewModel: ObservableObject {
     @Published var overlayImage: UIImage? = nil
-    @Published var imageOpacity: Double = 0.7 {
+    @Published var imageOpacity: Double = 0.6 {
         didSet {
             // Validar que el valor sea finito y esté en el rango correcto
             if !imageOpacity.isFinite || imageOpacity < 0 || imageOpacity > 1 {
-                imageOpacity = max(0, min(oldValue.isFinite ? oldValue : 0.7, 1))
+                imageOpacity = max(0, min(oldValue.isFinite ? oldValue : 0.6, 1))
             }
         }
     }
@@ -62,7 +62,7 @@ class CameraViewModel: ObservableObject {
         withAnimation(.easeInOut(duration: 0.3)) {
             imageScale = 1.0
             imageRotation = 0.0
-            imageOpacity = 0.7
+            imageOpacity = 0.6
             imageOffset = .zero
         }
     }
@@ -78,7 +78,7 @@ class CameraViewModel: ObservableObject {
         guard let image = overlayImage else { return false }
         
         // Asegurar que todos los valores sean válidos antes de guardar
-        let safeOpacity = imageOpacity.isFinite ? imageOpacity : 0.7
+        let safeOpacity = imageOpacity.isFinite ? imageOpacity : 0.6
         let safeScale = imageScale.isFinite && imageScale > 0 ? imageScale : 1.0
         let safeRotation = imageRotation.isFinite ? imageRotation : 0.0
         let safeOffsetX = imageOffset.width.isFinite ? imageOffset.width : 0.0
@@ -99,7 +99,7 @@ class CameraViewModel: ObservableObject {
             overlayImage = image
             
             // Validar todos los valores antes de asignarlos
-            imageOpacity = configuration.opacity.isFinite ? max(0, min(configuration.opacity, 1)) : 0.7
+            imageOpacity = configuration.opacity.isFinite ? max(0, min(configuration.opacity, 1)) : 0.6
             imageScale = configuration.scale.isFinite && configuration.scale > 0 ? CGFloat(configuration.scale) : 1.0
             imageRotation = configuration.rotation.isFinite ? configuration.rotation : 0.0
             
