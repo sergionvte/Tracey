@@ -16,7 +16,7 @@ struct ControlsView: View {
     @State private var showingSaveAlert = false
     @State private var saveSuccess = false
     @State private var isMenuExpanded = false
-    
+
     var body: some View {
         VStack(spacing: 20) {
             ZStack {
@@ -25,7 +25,7 @@ struct ControlsView: View {
                     //let radius: CGFloat = 85
                     let radius: CGFloat = 70
                     let angleStep: CGFloat = .pi / 3 // 60 grados entre cada botón
-                    
+
                     // Botón Seleccionar imagen (posición 0° - arriba)
                     Button(action: {
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
@@ -50,7 +50,7 @@ struct ControlsView: View {
                     .scaleEffect(isMenuExpanded ? 1.0 : 0.1)
                     .opacity(isMenuExpanded ? 1.0 : 0.0)
                     .animation(.spring(response: 0.4, dampingFraction: 0.7).delay(0.1), value: isMenuExpanded)
-                    
+
                     // Botón Ver imágenes guardadas (posición 60° - arriba derecha)
                     Button(action: {
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
@@ -75,19 +75,21 @@ struct ControlsView: View {
                     .scaleEffect(isMenuExpanded ? 1.0 : 0.1)
                     .opacity(isMenuExpanded ? 1.0 : 0.0)
                     .animation(.spring(response: 0.4, dampingFraction: 0.7).delay(0.15), value: isMenuExpanded)
-                    
+
                     // Botones adicionales cuando hay imagen
                     if viewModel.overlayImage != nil {
                         // Botón Controles de imagen (posición 120° - abajo derecha)
                         Button(action: {
-                            // Cerrar menú principal con animación suave
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                isMenuExpanded = false
-                            }
-                            // Esperar a que termine la animación de cierre antes de abrir propiedades
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                withAnimation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1)) {
-                                    showingImageControls = true
+                            if !isPropertiesLocked {
+                                // Cerrar menú principal con animación suave
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                    isMenuExpanded = false
+                                }
+                                // Esperar a que termine la animación de cierre antes de abrir propiedades
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1)) {
+                                        showingImageControls = true
+                                    }
                                 }
                             }
                         }) {
@@ -95,7 +97,7 @@ struct ControlsView: View {
                                 .font(.title2)
                                 .foregroundColor(.white)
                                 .frame(width: 45, height: 45)
-                                .background(showingImageControls ? Color.yellow : Color.gray)
+                                .background(isPropertiesLocked ? Color.gray.opacity(0.5) : (showingImageControls ? Color.yellow : Color.gray))
                                 .clipShape(Circle())
                                 .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
                         }
@@ -104,9 +106,10 @@ struct ControlsView: View {
                             y: -radius * cos(angleStep * 2)
                         )
                         .scaleEffect(isMenuExpanded ? 1.0 : 0.1)
-                        .opacity(isMenuExpanded ? 1.0 : 0.0)
+                        .opacity(isMenuExpanded ? (isPropertiesLocked ? 0.6 : 1.0) : 0.0)
                         .animation(.spring(response: 0.4, dampingFraction: 0.7).delay(0.2), value: isMenuExpanded)
-                        
+                        .disabled(isPropertiesLocked)
+
                         // Botón Centrar imagen (posición 180° - abajo)
                         Button(action: {
                             if !isPropertiesLocked {
@@ -134,7 +137,7 @@ struct ControlsView: View {
                         .opacity(isMenuExpanded ? (isPropertiesLocked ? 0.6 : 1.0) : 0.0)
                         .animation(.spring(response: 0.4, dampingFraction: 0.7).delay(0.25), value: isMenuExpanded)
                         .disabled(isPropertiesLocked)
-                        
+
                         // Botón Guardar (posición 240° - abajo izquierda)
                         Button(action: {
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
@@ -160,17 +163,19 @@ struct ControlsView: View {
                         .scaleEffect(isMenuExpanded ? 1.0 : 0.1)
                         .opacity(isMenuExpanded ? 1.0 : 0.0)
                         .animation(.spring(response: 0.4, dampingFraction: 0.7).delay(0.3), value: isMenuExpanded)
-                        
+
                         // Botón Limpiar imagen (posición 300° - arriba izquierda)
                         Button(action: {
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                isMenuExpanded = false
-                            }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                                viewModel.removeOverlayImage()
-                                // Cerrar propiedades suavemente cuando se elimina la imagen
-                                withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                                    showingImageControls = false
+                            if !isPropertiesLocked {
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                    isMenuExpanded = false
+                                }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                    viewModel.removeOverlayImage()
+                                    // Cerrar propiedades suavemente cuando se elimina la imagen
+                                    withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                                        showingImageControls = false
+                                    }
                                 }
                             }
                         }) {
@@ -178,7 +183,7 @@ struct ControlsView: View {
                                 .font(.title2)
                                 .foregroundColor(.white)
                                 .frame(width: 45, height: 45)
-                                .background(Color.red)
+                                .background(isPropertiesLocked ? Color.gray.opacity(0.5) : Color.red)
                                 .clipShape(Circle())
                                 .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
                         }
@@ -187,11 +192,12 @@ struct ControlsView: View {
                             y: -radius * cos(angleStep * 5)
                         )
                         .scaleEffect(isMenuExpanded ? 1.0 : 0.1)
-                        .opacity(isMenuExpanded ? 1.0 : 0.0)
+                        .opacity(isMenuExpanded ? (isPropertiesLocked ? 0.6 : 1.0) : 0.0)
                         .animation(.spring(response: 0.4, dampingFraction: 0.7).delay(0.35), value: isMenuExpanded)
+                        .disabled(isPropertiesLocked)
                     }
                 }
-                
+
                 // Botón principal (hamburguesa/cerrar)
                 Button(action: {
                     // Si el menú de propiedades está abierto, cerrarlo y abrir el menú principal
@@ -230,7 +236,7 @@ struct ControlsView: View {
                             .shadow(color: .black.opacity(0.4), radius: 6, x: 0, y: 3)
                             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: showingImageControls)
                             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isMenuExpanded)
-                        
+
                         // Ícono que cambia según el contexto con transiciones mejoradas
                         Image(systemName: showingImageControls ? "xmark" : (isMenuExpanded ? "xmark" : "ellipsis"))
                             .font(.title)
@@ -245,7 +251,7 @@ struct ControlsView: View {
                 .scaleEffect(showingImageControls ? 1.2 : (isMenuExpanded ? 1.1 : 1.0))
                 .animation(.spring(response: 0.4, dampingFraction: 0.8), value: showingImageControls)
                 .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isMenuExpanded)
-                
+
                 // Fondo difuminado cuando el menú está abierto - con transición mejorada
                 if isMenuExpanded {
                     Circle()

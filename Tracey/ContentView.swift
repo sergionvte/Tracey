@@ -14,22 +14,22 @@ struct ContentView: View {
     @State private var currentGestureScale: CGFloat = 1.0 // Para el zoom incremental
     @State private var cameraUIView: CameraUIView? = nil // Referencia a la vista de cámara
     @State private var isPropertiesLocked = false // Estado del candado
-    
+
     // Configuración del snap al centro
     private let snapThreshold: CGFloat = 30 // Distancia en puntos para activar el snap
-    
+
     var body: some View {
         GeometryReader { geometry in
             let screenCenter = CGPoint(
                 x: geometry.size.width / 2,
                 y: geometry.size.height / 2
             )
-            
+
             ZStack {
                 // Vista de cámara
-                CameraView(viewModel: viewModel, cameraUIView: $cameraUIView)
+                CameraView(viewModel: viewModel, cameraUIView: $cameraUIView, isZoomEnabled: !isPropertiesLocked)
                     .ignoresSafeArea()
-                
+
                 // Imagen superpuesta con gestos mejorados
                 if let overlayImage = viewModel.overlayImage {
                     Image(uiImage: overlayImage)
@@ -53,12 +53,12 @@ struct ContentView: View {
                                 .onEnded { value in
                                     // Aplicar el cambio final a la escala base
                                     let finalScale = viewModel.imageScale * value
-                                    
+
                                     // Validar que el valor sea finito y esté en el rango permitido
                                     if finalScale.isFinite && finalScale > 0 {
                                         viewModel.imageScale = max(0.1, min(finalScale, 5.0))
                                     }
-                                    
+
                                     // Resetear la escala del gesto
                                     currentGestureScale = 1.0
                                 }
@@ -70,10 +70,10 @@ struct ContentView: View {
                                                 gestureStartRotation = viewModel.imageRotation
                                                 gestureInProgress = true
                                             }
-                                            
+
                                             let rawRotation = gestureStartRotation + value.degrees
                                             let snappedRotation = snapToCardinalAngles(rawRotation)
-                                            
+
                                             // Validar que el valor sea finito antes de asignarlo
                                             if snappedRotation.isFinite {
                                                 viewModel.imageRotation = snappedRotation
@@ -83,7 +83,7 @@ struct ContentView: View {
                                             // Al terminar el gesto, actualizamos el valor base con el resultado final
                                             let rawRotation = gestureStartRotation + value.degrees
                                             let finalRotation = snapToCardinalAngles(rawRotation)
-                                            
+
                                             if finalRotation.isFinite {
                                                 // Animación suave hacia el ángulo final
                                                 withAnimation(.easeOut(duration: 0.2)) {
@@ -106,13 +106,13 @@ struct ContentView: View {
                                     // Calcular la posición final propuesta
                                     let proposedOffsetX = viewModel.imageOffset.width + value.translation.width
                                     let proposedOffsetY = viewModel.imageOffset.height + value.translation.height
-                                    
+
                                     // Aplicar snap al centro
                                     let snappedOffset = snapToCenter(
                                         offset: CGSize(width: proposedOffsetX, height: proposedOffsetY),
                                         screenCenter: screenCenter
                                     )
-                                    
+
                                     // Validar que los valores sean finitos
                                     if snappedOffset.width.isFinite && snappedOffset.height.isFinite {
                                         // Primero actualizar sin animación a la posición actual (incluyendo dragOffset)
@@ -121,7 +121,7 @@ struct ContentView: View {
                                             height: proposedOffsetY
                                         )
                                         dragOffset = .zero
-                                        
+
                                         // Luego animar hacia la posición final con snap (si aplica)
                                         if snappedOffset != CGSize(width: proposedOffsetX, height: proposedOffsetY) {
                                             withAnimation(.easeOut(duration: 0.2)) {
@@ -134,7 +134,7 @@ struct ContentView: View {
                                 }
                         )
                 }
-                
+
                 // Indicadores visuales de snap al centro (solo si no está bloqueado)
                 if viewModel.overlayImage != nil && !isPropertiesLocked && (abs(dragOffset.width) > 0 || abs(dragOffset.height) > 0) {
                     SnapIndicators(
@@ -144,7 +144,7 @@ struct ContentView: View {
                         snapThreshold: snapThreshold
                     )
                 }
-                
+
                 // Botones de enfoque y candado en la esquina superior derecha
                 VStack {
                     HStack {
@@ -163,7 +163,7 @@ struct ContentView: View {
                                     .clipShape(Circle())
                                     .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
                             }
-                            
+
                             // Botón de linterna
                             Button(action: {
                                 viewModel.toggleTorch()
@@ -176,13 +176,13 @@ struct ContentView: View {
                                     .clipShape(Circle())
                                     .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
                             }
-                            
+
                             // Botón de candado
                             Button(action: {
                                 withAnimation(.easeInOut(duration: 0.2)) {
                                     isPropertiesLocked.toggle()
                                 }
-                                
+
                                 // Feedback háptico
                                 let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
                                 impactFeedback.impactOccurred()
@@ -203,19 +203,19 @@ struct ContentView: View {
                 }
                 .opacity(showingControls ? 1 : 0)
                 .animation(.easeInOut(duration: 0.3), value: showingControls)
-                
+
                 // Controles de imagen (nuevos controles separados) - Solo permitir cambios si no está bloqueado
                 if showingImageControls && viewModel.overlayImage != nil {
                     VStack {
                         Spacer()
-                        
+
                         ImageControlsView(viewModel: viewModel, isLocked: isPropertiesLocked)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
-                        
+
                         Spacer().frame(height: 120) // Espacio para los controles principales
                     }
                 }
-                
+
                 // Controles principales - AQUÍ AGREGAMOS LA ANIMACIÓN
                 VStack {
                     Spacer()
@@ -228,7 +228,7 @@ struct ContentView: View {
                 }
                 .opacity(showingControls ? 1 : 0)
                 .animation(.easeInOut(duration: 0.3), value: showingControls)
-                
+
                 // Indicador de zoom de cámara y estado del candado
                 VStack {
                     HStack {
@@ -241,14 +241,14 @@ struct ContentView: View {
                                 .background(Color.black.opacity(0.6))
                                 .cornerRadius(20)
                                 .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-                            
+
                             // Indicador de estado del candado
                             if viewModel.overlayImage != nil {
                                 HStack(spacing: 4) {
                                     Image(systemName: isPropertiesLocked ? "lock.fill" : "lock.open")
                                         .font(.caption2)
                                         .foregroundColor(isPropertiesLocked ? .red : .green)
-                                    
+
                                     Text(isPropertiesLocked ? "Propiedades bloqueadas" : "Propiedades desbloqueadas")
                                         .font(.caption2)
                                         .foregroundColor(isPropertiesLocked ? .red : .green)
@@ -292,41 +292,41 @@ struct ContentView: View {
             SavedImagesView(viewModel: viewModel, isPresented: $viewModel.showingSavedImages)
         }
     }
-    
+
     // Función para hacer "snap" a ángulos cardinales
     private func snapToCardinalAngles(_ angle: Double) -> Double {
         let normalizedAngle = angle.truncatingRemainder(dividingBy: 360)
         let positiveAngle = normalizedAngle < 0 ? normalizedAngle + 360 : normalizedAngle
-        
+
         let cardinalAngles: [Double] = [0, 90, 180, 270, 360]
         let snapThreshold: Double = 8 // Grados de "magnetismo" - más sutil
-        
+
         for cardinalAngle in cardinalAngles {
             let distance = abs(positiveAngle - cardinalAngle)
             let wrappedDistance = min(distance, 360 - distance) // Para el caso de 0° y 360°
-            
+
             if wrappedDistance <= snapThreshold {
                 return cardinalAngle == 360 ? 0 : cardinalAngle // 360° se convierte en 0°
             }
         }
-        
+
         return positiveAngle
     }
-    
+
     // Función para hacer snap al centro de la pantalla
     private func snapToCenter(offset: CGSize, screenCenter: CGPoint) -> CGSize {
         var finalOffset = offset
-        
+
         // Snap horizontal (centro X)
         if abs(offset.width) <= snapThreshold {
             finalOffset.width = 0
         }
-        
+
         // Snap vertical (centro Y)
         if abs(offset.height) <= snapThreshold {
             finalOffset.height = 0
         }
-        
+
         return finalOffset
     }
 }
@@ -337,15 +337,15 @@ struct SnapIndicators: View {
     let imageOffset: CGSize
     let screenCenter: CGPoint
     let snapThreshold: CGFloat
-    
+
     private var showVerticalIndicator: Bool {
         abs(imageOffset.width + dragOffset.width) <= snapThreshold
     }
-    
+
     private var showHorizontalIndicator: Bool {
         abs(imageOffset.height + dragOffset.height) <= snapThreshold
     }
-    
+
     var body: some View {
         ZStack {
             // Línea vertical del centro
@@ -356,7 +356,7 @@ struct SnapIndicators: View {
                     .position(x: screenCenter.x, y: screenCenter.y)
                     .animation(.easeInOut(duration: 0.2), value: showVerticalIndicator)
             }
-            
+
             // Línea horizontal del centro
             if showHorizontalIndicator {
                 Rectangle()
@@ -365,7 +365,7 @@ struct SnapIndicators: View {
                     .position(x: screenCenter.x, y: screenCenter.y)
                     .animation(.easeInOut(duration: 0.2), value: showHorizontalIndicator)
             }
-            
+
             // Punto central
             if showVerticalIndicator || showHorizontalIndicator {
                 Circle()
@@ -383,7 +383,7 @@ struct SnapIndicators: View {
 struct ImageControlsView: View {
     @ObservedObject var viewModel: CameraViewModel
     let isLocked: Bool
-    
+
     var body: some View {
         VStack(spacing: 12) {
             // Línea 1: Opacidad
@@ -392,97 +392,97 @@ struct ImageControlsView: View {
                     .foregroundColor(isLocked ? .gray : .white)
                     .font(.caption)
                     .fontWeight(.medium)
-                
+
                 HStack {
                     Text("0%")
                         .foregroundColor(.white.opacity(0.7))
                         .font(.caption2)
-                    
+
                     Slider(value: $viewModel.imageOpacity, in: 0...1)
                         .frame(width: 180)
                         .disabled(isLocked)
                         .opacity(isLocked ? 0.5 : 1.0)
-                    
+
                     Text("100%")
                         .foregroundColor(.white.opacity(0.7))
                         .font(.caption2)
                 }
-                
+
                 Text("\(Int(viewModel.imageOpacity * 100))%")
                     .foregroundColor(isLocked ? .gray : .white)
                     .font(.caption2)
                     .fontWeight(.semibold)
             }
-            
+
             Divider()
                 .background(Color.white.opacity(0.3))
-            
+
             // Línea 2: Tamaño
             VStack(spacing: 4) {
                 Text("Tamaño")
                     .foregroundColor(isLocked ? .gray : .white)
                     .font(.caption)
                     .fontWeight(.medium)
-                
+
                 HStack {
                     Text("0.1x")
                         .foregroundColor(.white.opacity(0.7))
                         .font(.caption2)
-                    
+
                     Slider(value: $viewModel.imageScale, in: 0.1...5.0)
                         .frame(width: 180)
                         .disabled(isLocked)
                         .opacity(isLocked ? 0.5 : 1.0)
-                    
+
                     Text("5.0x")
                         .foregroundColor(.white.opacity(0.7))
                         .font(.caption2)
                 }
-                
+
                 Text("\(String(format: "%.1f", viewModel.imageScale))x")
                     .foregroundColor(isLocked ? .gray : .white)
                     .font(.caption2)
                     .fontWeight(.semibold)
             }
-            
+
             Divider()
                 .background(Color.white.opacity(0.3))
-            
+
             // Línea 3: Rotación
             VStack(spacing: 4) {
                 Text("Rotación")
                     .foregroundColor(isLocked ? .gray : .white)
                     .font(.caption)
                     .fontWeight(.medium)
-                
+
                 HStack {
                     Text("0°")
                         .foregroundColor(.white.opacity(0.7))
                         .font(.caption2)
-                    
+
                     Slider(value: $viewModel.imageRotation, in: 0...360)
                         .frame(width: 180)
                         .disabled(isLocked)
                         .opacity(isLocked ? 0.5 : 1.0)
-                    
+
                     Text("360°")
                         .foregroundColor(.white.opacity(0.7))
                         .font(.caption2)
                 }
-                
+
                 Text("\(Int(viewModel.imageRotation.isFinite ? viewModel.imageRotation : 0))°")
                     .foregroundColor(isLocked ? .gray : .white)
                     .font(.caption2)
                     .fontWeight(.semibold)
             }
-            
+
             // Indicador de candado si está bloqueado
             if isLocked {
                 HStack(spacing: 6) {
                     Image(systemName: "lock.fill")
                         .font(.caption2)
                         .foregroundColor(.red)
-                    
+
                     Text("Controles bloqueados")
                         .font(.caption2)
                         .foregroundColor(.red)
