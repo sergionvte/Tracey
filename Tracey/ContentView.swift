@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 
 struct ContentView: View {
-    @StateObject private var viewModel = CameraViewModel()
+    @ObservedObject private var viewModel = CameraViewModel()
     @State private var showingImagePicker = false
     @State private var showingControls = true
     @State private var showingImageControls = false // New state for image controls
@@ -13,7 +13,6 @@ struct ContentView: View {
     @State private var gestureInProgress = false
     @State private var currentGestureScale: CGFloat = 1.0 // For incremental zoom
     @State private var cameraUIView: CameraUIView? = nil // Reference to camera view
-    @State private var isPropertiesLocked = false // Lock state
 
     // Snap to center configuration
     private let snapThreshold: CGFloat = 30 // Distance in points to activate snap
@@ -27,7 +26,7 @@ struct ContentView: View {
 
             ZStack {
                 // Camera view
-                CameraView(viewModel: viewModel, cameraUIView: $cameraUIView, isZoomEnabled: !isPropertiesLocked)
+                CameraView(viewModel: viewModel, cameraUIView: $cameraUIView, isZoomEnabled: !viewModel.isPropertiesLocked)
                     .ignoresSafeArea()
 
                 // Overlay image with improved gestures
@@ -44,8 +43,7 @@ struct ContentView: View {
                             height: viewModel.imageOffset.height + dragOffset.height
                         ))
                         .gesture(
-                            // Only allow gestures if not locked
-                            isPropertiesLocked ? nil :
+                            viewModel.isPropertiesLocked ? nil :
                             // Incremental scale gesture
                             MagnificationGesture()
                                 .onChanged { value in
@@ -97,7 +95,7 @@ struct ContentView: View {
                         )
                         .simultaneousGesture(
                             // Only allow movement if not locked
-                            isPropertiesLocked ? nil :
+                            viewModel.isPropertiesLocked ? nil :
                             // Separate movement gesture with snap to center
                             DragGesture()
                                 .onChanged { value in
@@ -137,7 +135,7 @@ struct ContentView: View {
                 }
 
                 // Visual snap indicators (only if not locked)
-                if viewModel.overlayImage != nil && !isPropertiesLocked && (abs(dragOffset.width) > 0 || abs(dragOffset.height) > 0) {
+                if viewModel.overlayImage != nil && !viewModel.isPropertiesLocked && (abs(dragOffset.width) > 0 || abs(dragOffset.height) > 0) {
                     SnapIndicators(
                         dragOffset: dragOffset,
                         imageOffset: viewModel.imageOffset,
@@ -180,7 +178,7 @@ struct ContentView: View {
 
                             // Horizontal flip button (between torch and lock)
                             Button(action: {
-                                if isPropertiesLocked {
+                                if viewModel.isPropertiesLocked {
                                     // Consume the tap but do nothing
                                     return
                                 }
@@ -190,7 +188,7 @@ struct ContentView: View {
                                     .font(.title2)
                                     .foregroundColor(.white)
                                     .frame(width: 44, height: 44)
-                                    .background(isPropertiesLocked ? Color.gray.opacity(0.5) : (viewModel.isFlipped ? Color.green.opacity(0.8) : Color.black.opacity(0.6)))
+                                    .background(viewModel.isPropertiesLocked ? Color.gray.opacity(0.5) : (viewModel.isFlipped ? Color.green.opacity(0.8) : Color.black.opacity(0.6)))
                                     .clipShape(Circle())
                                     .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
                             }
@@ -198,18 +196,18 @@ struct ContentView: View {
                             // Lock button
                             Button(action: {
                                 withAnimation(.easeInOut(duration: 0.2)) {
-                                    isPropertiesLocked.toggle()
+                                    viewModel.isPropertiesLocked.toggle()
                                 }
 
                                 // Haptic feedback
                                 let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
                                 impactFeedback.impactOccurred()
                             }) {
-                                Image(systemName: isPropertiesLocked ? "lock.fill" : "lock.open")
+                                Image(systemName: viewModel.isPropertiesLocked ? "lock.fill" : "lock.open")
                                     .font(.title2)
                                     .foregroundColor(.white)
                                     .frame(width: 44, height: 44)
-                                    .background(isPropertiesLocked ? Color.red.opacity(0.8) : Color.black.opacity(0.6))
+                                    .background(viewModel.isPropertiesLocked ? Color.red.opacity(0.8) : Color.black.opacity(0.6))
                                     .clipShape(Circle())
                                     .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
                             }
@@ -227,7 +225,7 @@ struct ContentView: View {
                     VStack {
                         Spacer()
 
-                        ImageControlsView(viewModel: viewModel, isLocked: isPropertiesLocked)
+                        ImageControlsView(viewModel: viewModel, isLocked: viewModel.isPropertiesLocked)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
 
                         Spacer().frame(height: 120) // Space for main controls
@@ -241,7 +239,7 @@ struct ContentView: View {
                         viewModel: viewModel,
                         showingImagePicker: $showingImagePicker,
                         showingImageControls: $showingImageControls,
-                        isPropertiesLocked: isPropertiesLocked
+                        isPropertiesLocked: viewModel.isPropertiesLocked
                     )
                 }
                 .opacity(showingControls ? 1 : 0)
@@ -263,13 +261,13 @@ struct ContentView: View {
                             // Lock state indicator
                             if viewModel.overlayImage != nil {
                                 HStack(spacing: 4) {
-                                    Image(systemName: isPropertiesLocked ? "lock.fill" : "lock.open")
+                                    Image(systemName: viewModel.isPropertiesLocked ? "lock.fill" : "lock.open")
                                         .font(.caption2)
-                                        .foregroundColor(isPropertiesLocked ? .red : .green)
+                                        .foregroundColor(viewModel.isPropertiesLocked ? .red : .green)
 
-                                    Text(isPropertiesLocked ? "Properties locked" : "Properties unlocked")
+                                    Text(viewModel.isPropertiesLocked ? "Properties locked" : "Properties unlocked")
                                         .font(.caption2)
-                                        .foregroundColor(isPropertiesLocked ? .red : .green)
+                                        .foregroundColor(viewModel.isPropertiesLocked ? .red : .green)
                                 }
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 4)

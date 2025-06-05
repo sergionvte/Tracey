@@ -86,6 +86,7 @@ class CameraViewModel: ObservableObject {
             if newValue != nil {
                 imageStorage.loadedImageName = nil // Forzar nuevo guardado
                 isFlipped = false // Reiniciar flip horizontal
+                isPropertiesLocked = false // Reiniciar estado de bloqueo al cargar desde la galería
             }
         }
     }
@@ -138,6 +139,7 @@ class CameraViewModel: ObservableObject {
             let offsetWidth = configuration.offsetX.isFinite ? configuration.offsetX : 0.0
             let offsetHeight = configuration.offsetY.isFinite ? configuration.offsetY : 0.0
             imageOffset = CGSize(width: offsetWidth, height: offsetHeight)
+            isPropertiesLocked = false // Reiniciar estado de bloqueo al cargar desde imágenes guardadas
         }
     }
 
@@ -174,6 +176,8 @@ class CameraViewModel: ObservableObject {
     func flipOverlayImage() {
         isFlipped.toggle()
     }
+
+    @Published var isPropertiesLocked: Bool = false // Agregar esta propiedad para gestionar el estado de bloqueo globalmente
 
 }
 
