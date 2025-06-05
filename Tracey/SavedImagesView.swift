@@ -49,19 +49,27 @@ struct SavedImageCard: View {
     var body: some View {
         if !isDeleted {
             HStack(alignment: .center, spacing: 16) {
-                // Imagen centrada y grande en el espacio restante
                 GeometryReader { geo in
                     if let image = viewModel.imageStorage.loadImage(named: configuration.imageName) {
                         let side = min(geo.size.width, geo.size.height)
-                        Image(uiImage: image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: side * 0.85, height: side * 0.85)
-                            .opacity(configuration.opacity)
-                            .rotationEffect(.degrees(configuration.rotation))
-                            .clipped()
-                            .cornerRadius(10)
-                            .position(x: geo.size.width/2, y: geo.size.height/2)
+                        let radians = CGFloat(configuration.rotation) * .pi / 180
+                        // El factor máximo para que la imagen nunca sobresalga del frame, incluso a 45°
+                        let fitFactor = 1 / (abs(sin(radians)) + abs(cos(radians)))
+                        let maxFactor: CGFloat = 1 / sqrt(2) // Para 45° en un cuadrado
+                        let safeFactor = min(fitFactor, maxFactor)
+                        let previewSize = side * 0.85 * safeFactor
+                        ZStack {
+                            Color.clear
+                            Image(uiImage: image)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .scaleEffect(x: configuration.isFlipped ? -1 : 1, y: 1) // Flip horizontal si está activado
+                                .frame(width: previewSize, height: previewSize)
+                                .opacity(configuration.opacity)
+                                .rotationEffect(.degrees(configuration.rotation))
+                                .cornerRadius(10)
+                        }
+                        .frame(width: geo.size.width, height: geo.size.height)
                     }
                 }
                 .frame(minWidth: 0, maxWidth: .infinity, minHeight: 120, maxHeight: 140)

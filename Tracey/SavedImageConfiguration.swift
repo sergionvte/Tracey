@@ -17,9 +17,10 @@ struct SavedImageConfiguration: Codable, Identifiable {
     let rotation: Double
     let offsetX: Double
     let offsetY: Double
+    let isFlipped: Bool // Nuevo campo para flip horizontal
     let dateCreated: Date
 
-    init(imageName: String, opacity: Double, scale: Double, rotation: Double, offsetX: Double = 0, offsetY: Double = 0) {
+    init(imageName: String, opacity: Double, scale: Double, rotation: Double, offsetX: Double = 0, offsetY: Double = 0, isFlipped: Bool = false) {
         self.id = UUID()
         self.imageName = imageName
         self.opacity = opacity
@@ -27,11 +28,12 @@ struct SavedImageConfiguration: Codable, Identifiable {
         self.rotation = rotation
         self.offsetX = offsetX
         self.offsetY = offsetY
+        self.isFlipped = isFlipped
         self.dateCreated = Date()
     }
 
     // Nuevo init para sobrescribir manteniendo id y fecha
-    init(id: UUID, imageName: String, opacity: Double, scale: Double, rotation: Double, offsetX: Double, offsetY: Double, dateCreated: Date) {
+    init(id: UUID, imageName: String, opacity: Double, scale: Double, rotation: Double, offsetX: Double, offsetY: Double, isFlipped: Bool, dateCreated: Date) {
         self.id = id
         self.imageName = imageName
         self.opacity = opacity
@@ -39,6 +41,7 @@ struct SavedImageConfiguration: Codable, Identifiable {
         self.rotation = rotation
         self.offsetX = offsetX
         self.offsetY = offsetY
+        self.isFlipped = isFlipped
         self.dateCreated = dateCreated
     }
 }

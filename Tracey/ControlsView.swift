@@ -201,6 +201,7 @@ struct ControlsView: View {
                         .opacity(isMenuExpanded ? (isPropertiesLocked ? 0.6 : 1.0) : 0.0)
                         .animation(.spring(response: 0.4, dampingFraction: 0.7).delay(0.35), value: isMenuExpanded)
                         .disabled(false)
+
                     }
                 }
 

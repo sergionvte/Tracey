@@ -36,6 +36,7 @@ struct ContentView: View {
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .opacity(viewModel.imageOpacity)
+                        .scaleEffect(x: viewModel.isFlipped ? -1 : 1, y: 1) // Flip horizontal si está activado
                         .scaleEffect(viewModel.imageScale * currentGestureScale) // Aplicar escala incremental
                         .rotationEffect(.degrees(viewModel.imageRotation))
                         .offset(CGSize(
@@ -177,6 +178,23 @@ struct ContentView: View {
                                     .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
                             }
 
+                            // Botón de flip horizontal (entre linterna y candado)
+                            Button(action: {
+                                if isPropertiesLocked {
+                                    // Consumir el tap pero no hacer nada
+                                    return
+                                }
+                                viewModel.flipOverlayImage()
+                            }) {
+                                Image(systemName: "arrow.left.and.right.righttriangle.left.righttriangle.right")
+                                    .font(.title2)
+                                    .foregroundColor(.white)
+                                    .frame(width: 44, height: 44)
+                                    .background(isPropertiesLocked ? Color.gray.opacity(0.5) : (viewModel.isFlipped ? Color.green.opacity(0.8) : Color.black.opacity(0.6)))
+                                    .clipShape(Circle())
+                                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                            }
+
                             // Botón de candado
                             Button(action: {
                                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -286,7 +304,7 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $showingImagePicker) {
-            ImagePicker(selectedImage: $viewModel.overlayImage)
+            ImagePicker(selectedImage: $viewModel.selectedImageFromGallery) // Usar la propiedad que limpia loadedImageName
         }
         .sheet(isPresented: $viewModel.showingSavedImages, onDismiss: {
             showingImageControls = false // Asegura que el menú principal pueda abrirse

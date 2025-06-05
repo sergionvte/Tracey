@@ -9,6 +9,8 @@
 import SwiftUI
 import Combine
 import AVFoundation
+import Foundation
+import UIKit
 
 class CameraViewModel: ObservableObject {
     @Published var overlayImage: UIImage? = nil
@@ -72,28 +74,54 @@ class CameraViewModel: ObservableObject {
             overlayImage = nil
         }
         imageStorage.loadedImageName = nil // Limpiar referencia al nombre de imagen cargada
+        isFlipped = false // Reiniciar flip horizontal al borrar
         resetImageTransforms()
+    }
+
+    // Cuando se selecciona una nueva imagen desde la galería, limpiar loadedImageName
+    var selectedImageFromGallery: UIImage? {
+        get { overlayImage }
+        set {
+            overlayImage = newValue
+            if newValue != nil {
+                imageStorage.loadedImageName = nil // Forzar nuevo guardado
+                isFlipped = false // Reiniciar flip horizontal
+            }
+        }
     }
 
     func saveCurrentConfiguration() -> Bool {
         guard let image = overlayImage else { return false }
 
-        // Asegurar que todos los valores sean válidos antes de guardar
         let safeOpacity = imageOpacity.isFinite ? imageOpacity : 0.6
         let safeScale = imageScale.isFinite && imageScale > 0 ? imageScale : 1.0
         let safeRotation = imageRotation.isFinite ? imageRotation : 0.0
         let safeOffsetX = imageOffset.width.isFinite ? imageOffset.width : 0.0
         let safeOffsetY = imageOffset.height.isFinite ? imageOffset.height : 0.0
+        let safeIsFlipped = isFlipped
 
-        return imageStorage.saveImageConfiguration(
+        let wasNew = imageStorage.loadedImageName == nil
+        let prevLoadedName = imageStorage.loadedImageName
+
+        let success = imageStorage.saveImageConfiguration(
             image: image,
             opacity: safeOpacity,
             scale: Double(safeScale),
             rotation: safeRotation,
             offsetX: safeOffsetX,
             offsetY: safeOffsetY,
-            overwriteImageName: imageStorage.loadedImageName // Si hay una imagen cargada, sobrescribir
+            isFlipped: safeIsFlipped,
+            overwriteImageName: prevLoadedName
         )
+
+        // Si era una imagen nueva y se guardó bien, asignar el nombre de la imagen guardada
+        if wasNew && success {
+            // Buscar la última configuración guardada (la más reciente)
+            if let lastConfig = imageStorage.savedConfigurations.last {
+                imageStorage.loadedImageName = lastConfig.imageName
+            }
+        }
+        return success
     }
 
     func loadConfiguration(_ configuration: SavedImageConfiguration) {
@@ -105,6 +133,7 @@ class CameraViewModel: ObservableObject {
             imageOpacity = configuration.opacity.isFinite ? max(0, min(configuration.opacity, 1)) : 0.6
             imageScale = configuration.scale.isFinite && configuration.scale > 0 ? CGFloat(configuration.scale) : 1.0
             imageRotation = configuration.rotation.isFinite ? configuration.rotation : 0.0
+            isFlipped = configuration.isFlipped // Cargar flip
 
             let offsetWidth = configuration.offsetX.isFinite ? configuration.offsetX : 0.0
             let offsetHeight = configuration.offsetY.isFinite ? configuration.offsetY : 0.0
@@ -138,6 +167,12 @@ class CameraViewModel: ObservableObject {
         } catch {
             print("Error toggling torch: \(error)")
         }
+    }
+
+    @Published var isFlipped: Bool = false
+
+    func flipOverlayImage() {
+        isFlipped.toggle()
     }
 
 }

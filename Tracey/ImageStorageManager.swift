@@ -23,7 +23,7 @@ class ImageStorageManager: ObservableObject {
     }
 
     // MARK: - Sobrescribir si ya existe una configuración con la misma imagen
-    func saveImageConfiguration(image: UIImage, opacity: Double, scale: Double, rotation: Double, offsetX: Double = 0, offsetY: Double = 0, overwriteImageName: String? = nil) -> Bool {
+    func saveImageConfiguration(image: UIImage, opacity: Double, scale: Double, rotation: Double, offsetX: Double = 0, offsetY: Double = 0, isFlipped: Bool = false, overwriteImageName: String? = nil) -> Bool {
         let imageName: String
         if let overwriteName = overwriteImageName {
             imageName = overwriteName
@@ -47,7 +47,8 @@ class ImageStorageManager: ObservableObject {
                     scale: scale,
                     rotation: rotation,
                     offsetX: offsetX,
-                    offsetY: offsetY
+                    offsetY: offsetY,
+                    isFlipped: isFlipped
                 )
                 // Mantener el mismo id y fecha de creación
                 let configWithOldId = SavedImageConfiguration(
@@ -58,6 +59,7 @@ class ImageStorageManager: ObservableObject {
                     rotation: rotation,
                     offsetX: offsetX,
                     offsetY: offsetY,
+                    isFlipped: isFlipped,
                     dateCreated: oldConfig.dateCreated
                 )
                 savedConfigurations[idx] = configWithOldId
@@ -72,7 +74,8 @@ class ImageStorageManager: ObservableObject {
                 scale: scale,
                 rotation: rotation,
                 offsetX: offsetX,
-                offsetY: offsetY
+                offsetY: offsetY,
+                isFlipped: isFlipped
             )
             savedConfigurations.append(configuration)
             saveConfigurations()
