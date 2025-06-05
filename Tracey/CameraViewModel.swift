@@ -55,9 +55,9 @@ class CameraViewModel: ObservableObject {
         }
     }
     @Published var showingSavedImages = false
-    
+
     let imageStorage = ImageStorageManager()
-    
+
     func resetImageTransforms() {
         withAnimation(.easeInOut(duration: 0.3)) {
             imageScale = 1.0
@@ -66,56 +66,59 @@ class CameraViewModel: ObservableObject {
             imageOffset = .zero
         }
     }
-    
+
     func removeOverlayImage() {
         withAnimation(.easeInOut(duration: 0.2)) {
             overlayImage = nil
         }
+        imageStorage.loadedImageName = nil // Limpiar referencia al nombre de imagen cargada
         resetImageTransforms()
     }
-    
+
     func saveCurrentConfiguration() -> Bool {
         guard let image = overlayImage else { return false }
-        
+
         // Asegurar que todos los valores sean válidos antes de guardar
         let safeOpacity = imageOpacity.isFinite ? imageOpacity : 0.6
         let safeScale = imageScale.isFinite && imageScale > 0 ? imageScale : 1.0
         let safeRotation = imageRotation.isFinite ? imageRotation : 0.0
         let safeOffsetX = imageOffset.width.isFinite ? imageOffset.width : 0.0
         let safeOffsetY = imageOffset.height.isFinite ? imageOffset.height : 0.0
-        
+
         return imageStorage.saveImageConfiguration(
             image: image,
             opacity: safeOpacity,
             scale: Double(safeScale),
             rotation: safeRotation,
             offsetX: safeOffsetX,
-            offsetY: safeOffsetY
+            offsetY: safeOffsetY,
+            overwriteImageName: imageStorage.loadedImageName // Si hay una imagen cargada, sobrescribir
         )
     }
-    
+
     func loadConfiguration(_ configuration: SavedImageConfiguration) {
         if let image = imageStorage.loadImage(named: configuration.imageName) {
             overlayImage = image
-            
+            imageStorage.loadedImageName = configuration.imageName // Guardar el nombre de la imagen cargada
+
             // Validar todos los valores antes de asignarlos
             imageOpacity = configuration.opacity.isFinite ? max(0, min(configuration.opacity, 1)) : 0.6
             imageScale = configuration.scale.isFinite && configuration.scale > 0 ? CGFloat(configuration.scale) : 1.0
             imageRotation = configuration.rotation.isFinite ? configuration.rotation : 0.0
-            
+
             let offsetWidth = configuration.offsetX.isFinite ? configuration.offsetX : 0.0
             let offsetHeight = configuration.offsetY.isFinite ? configuration.offsetY : 0.0
             imageOffset = CGSize(width: offsetWidth, height: offsetHeight)
         }
     }
-    
+
     func centerImage() {
         // Animación suave para centrar la imagen
         withAnimation(.easeInOut(duration: 0.3)) {
             imageOffset = .zero
         }
     }
-    
+
     @Published var isTorchOn: Bool = false
 
     func toggleTorch() {
@@ -136,6 +139,6 @@ class CameraViewModel: ObservableObject {
             print("Error toggling torch: \(error)")
         }
     }
-    
+
 }
 

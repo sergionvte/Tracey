@@ -80,16 +80,18 @@ struct ControlsView: View {
                     if viewModel.overlayImage != nil {
                         // Botón Controles de imagen (posición 120° - abajo derecha)
                         Button(action: {
-                            if !isPropertiesLocked {
-                                // Cerrar menú principal con animación suave
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                    isMenuExpanded = false
-                                }
-                                // Esperar a que termine la animación de cierre antes de abrir propiedades
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1)) {
-                                        showingImageControls = true
-                                    }
+                            if isPropertiesLocked {
+                                // Consumir el tap pero no hacer nada ni ocultar la interfaz
+                                return
+                            }
+                            // Cerrar menú principal con animación suave
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                isMenuExpanded = false
+                            }
+                            // Esperar a que termine la animación de cierre antes de abrir propiedades
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                withAnimation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1)) {
+                                    showingImageControls = true
                                 }
                             }
                         }) {
@@ -108,17 +110,19 @@ struct ControlsView: View {
                         .scaleEffect(isMenuExpanded ? 1.0 : 0.1)
                         .opacity(isMenuExpanded ? (isPropertiesLocked ? 0.6 : 1.0) : 0.0)
                         .animation(.spring(response: 0.4, dampingFraction: 0.7).delay(0.2), value: isMenuExpanded)
-                        .disabled(isPropertiesLocked)
+                        .disabled(false)
 
                         // Botón Centrar imagen (posición 180° - abajo)
                         Button(action: {
-                            if !isPropertiesLocked {
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                    isMenuExpanded = false
-                                }
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                                    viewModel.centerImage()
-                                }
+                            if isPropertiesLocked {
+                                // Consumir el tap pero no hacer nada ni ocultar la interfaz
+                                return
+                            }
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                isMenuExpanded = false
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                viewModel.centerImage()
                             }
                         }) {
                             Image(systemName: "scope")
@@ -136,7 +140,7 @@ struct ControlsView: View {
                         .scaleEffect(isMenuExpanded ? 1.0 : 0.1)
                         .opacity(isMenuExpanded ? (isPropertiesLocked ? 0.6 : 1.0) : 0.0)
                         .animation(.spring(response: 0.4, dampingFraction: 0.7).delay(0.25), value: isMenuExpanded)
-                        .disabled(isPropertiesLocked)
+                        .disabled(false)
 
                         // Botón Guardar (posición 240° - abajo izquierda)
                         Button(action: {
@@ -166,16 +170,18 @@ struct ControlsView: View {
 
                         // Botón Limpiar imagen (posición 300° - arriba izquierda)
                         Button(action: {
-                            if !isPropertiesLocked {
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                    isMenuExpanded = false
-                                }
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                                    viewModel.removeOverlayImage()
-                                    // Cerrar propiedades suavemente cuando se elimina la imagen
-                                    withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                                        showingImageControls = false
-                                    }
+                            if isPropertiesLocked {
+                                // Consumir el tap pero no hacer nada ni ocultar la interfaz
+                                return
+                            }
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                isMenuExpanded = false
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                viewModel.removeOverlayImage()
+                                // Cerrar propiedades suavemente cuando se elimina la imagen
+                                withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                                    showingImageControls = false
                                 }
                             }
                         }) {
@@ -194,7 +200,7 @@ struct ControlsView: View {
                         .scaleEffect(isMenuExpanded ? 1.0 : 0.1)
                         .opacity(isMenuExpanded ? (isPropertiesLocked ? 0.6 : 1.0) : 0.0)
                         .animation(.spring(response: 0.4, dampingFraction: 0.7).delay(0.35), value: isMenuExpanded)
-                        .disabled(isPropertiesLocked)
+                        .disabled(false)
                     }
                 }
 
@@ -277,7 +283,9 @@ struct ControlsView: View {
             }
         }
         .alert("Guardar Imagen", isPresented: $showingSaveAlert) {
-            Button("OK") { }
+            Button("OK") {
+                showingImageControls = false // Asegura que el menú principal pueda abrirse después de guardar
+            }
         } message: {
             Text(saveSuccess ? "Imagen guardada correctamente" : "Error al guardar la imagen")
         }

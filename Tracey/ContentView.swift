@@ -288,7 +288,9 @@ struct ContentView: View {
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(selectedImage: $viewModel.overlayImage)
         }
-        .sheet(isPresented: $viewModel.showingSavedImages) {
+        .sheet(isPresented: $viewModel.showingSavedImages, onDismiss: {
+            showingImageControls = false // Asegura que el menú principal pueda abrirse
+        }) {
             SavedImagesView(viewModel: viewModel, isPresented: $viewModel.showingSavedImages)
         }
     }
