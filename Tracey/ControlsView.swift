@@ -152,7 +152,9 @@ struct ControlsView: View {
                                 isMenuExpanded = false
                             }
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                                saveSuccess = viewModel.saveCurrentConfiguration()
+                                let zoom = viewModel.cameraUIViewRef?.getCurrentZoomFactor() ?? 1.0
+                                let result = (viewModel as CameraViewModel).saveCurrentConfiguration(cameraZoom: zoom)
+                                saveSuccess = result
                                 showingSaveAlert = true
                             }
                         }) {

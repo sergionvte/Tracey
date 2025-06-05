@@ -20,6 +20,8 @@ struct CameraView: UIViewRepresentable {
         cameraView.setupCamera()
         DispatchQueue.main.async {
             cameraUIView = cameraView
+            // Vincular referencia débil para setear zoom desde el ViewModel
+            viewModel.cameraUIViewRef = cameraView
         }
         return cameraView
     }
@@ -178,6 +180,24 @@ class CameraUIView: UIView {
                 focusView.removeFromSuperview()
             }
         }
+    }
+
+    func setZoomFactor(_ zoom: CGFloat) {
+        guard let device = captureDevice else { return }
+        do {
+            try device.lockForConfiguration()
+            let maxZoom = min(device.activeFormat.videoMaxZoomFactor, 10.0)
+            let newZoom = max(1.0, min(zoom, maxZoom))
+            device.videoZoomFactor = newZoom
+            device.unlockForConfiguration()
+        } catch {
+            print("Error setting zoom: \(error)")
+        }
+    }
+
+    // Nuevo método público para obtener el zoom actual de la cámara
+    func getCurrentZoomFactor() -> CGFloat {
+        return captureDevice?.videoZoomFactor ?? 1.0
     }
 }
 

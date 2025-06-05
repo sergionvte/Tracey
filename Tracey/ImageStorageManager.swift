@@ -5,9 +5,10 @@
 //  Created by Sergio Navarrete on 31/05/25.
 //
 
-// ImageStorageManager.swift - With position
 import SwiftUI
 import Foundation
+
+// Asegúrate de que SavedImageConfiguration.swift esté en el mismo target que ImageStorageManager.swift
 
 class ImageStorageManager: ObservableObject {
     @Published var savedConfigurations: [SavedImageConfiguration] = []
@@ -23,7 +24,7 @@ class ImageStorageManager: ObservableObject {
     }
 
     // MARK: - Overwrite if a configuration with the same image already exists
-    func saveImageConfiguration(image: UIImage, opacity: Double, scale: Double, rotation: Double, offsetX: Double = 0, offsetY: Double = 0, isFlipped: Bool = false, overwriteImageName: String? = nil) -> Bool {
+    func saveImageConfiguration(image: UIImage, opacity: Double, scale: Double, rotation: Double, offsetX: Double = 0, offsetY: Double = 0, isFlipped: Bool = false, cameraZoom: CGFloat = 1.0, overwriteImageName: String? = nil) -> Bool {
         let imageName: String
         if let overwriteName = overwriteImageName {
             imageName = overwriteName
@@ -32,26 +33,14 @@ class ImageStorageManager: ObservableObject {
         }
         let imageURL = documentsDirectory.appendingPathComponent(imageName)
 
-        // Save image
         guard let imageData = image.jpegData(compressionQuality: 0.8) else { return false }
 
         do {
             try imageData.write(to: imageURL)
 
-            // If overwrite, replace the existing configuration
             if let overwriteName = overwriteImageName, let idx = savedConfigurations.firstIndex(where: { $0.imageName == overwriteName }) {
                 let oldConfig = savedConfigurations[idx]
                 let newConfig = SavedImageConfiguration(
-                    imageName: imageName,
-                    opacity: opacity,
-                    scale: scale,
-                    rotation: rotation,
-                    offsetX: offsetX,
-                    offsetY: offsetY,
-                    isFlipped: isFlipped
-                )
-                // Keep the same id and creation date
-                let configWithOldId = SavedImageConfiguration(
                     id: oldConfig.id,
                     imageName: imageName,
                     opacity: opacity,
@@ -60,14 +49,14 @@ class ImageStorageManager: ObservableObject {
                     offsetX: offsetX,
                     offsetY: offsetY,
                     isFlipped: isFlipped,
-                    dateCreated: oldConfig.dateCreated
+                    dateCreated: oldConfig.dateCreated,
+                    cameraZoom: cameraZoom
                 )
-                savedConfigurations[idx] = configWithOldId
+                savedConfigurations[idx] = newConfig
                 saveConfigurations()
                 return true
             }
 
-            // Create new configuration
             let configuration = SavedImageConfiguration(
                 imageName: imageName,
                 opacity: opacity,
@@ -75,7 +64,8 @@ class ImageStorageManager: ObservableObject {
                 rotation: rotation,
                 offsetX: offsetX,
                 offsetY: offsetY,
-                isFlipped: isFlipped
+                isFlipped: isFlipped,
+                cameraZoom: cameraZoom
             )
             savedConfigurations.append(configuration)
             saveConfigurations()

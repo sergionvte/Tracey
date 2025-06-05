@@ -19,8 +19,9 @@ struct SavedImageConfiguration: Codable, Identifiable {
     let offsetY: Double
     let isFlipped: Bool // Nuevo campo para flip horizontal
     let dateCreated: Date
+    let cameraZoom: CGFloat // Nuevo campo para el zoom de la cámara
 
-    init(imageName: String, opacity: Double, scale: Double, rotation: Double, offsetX: Double = 0, offsetY: Double = 0, isFlipped: Bool = false) {
+    init(imageName: String, opacity: Double, scale: Double, rotation: Double, offsetX: Double = 0, offsetY: Double = 0, isFlipped: Bool = false, cameraZoom: CGFloat = 1.0) {
         self.id = UUID()
         self.imageName = imageName
         self.opacity = opacity
@@ -30,10 +31,11 @@ struct SavedImageConfiguration: Codable, Identifiable {
         self.offsetY = offsetY
         self.isFlipped = isFlipped
         self.dateCreated = Date()
+        self.cameraZoom = cameraZoom
     }
 
     // Nuevo init para sobrescribir manteniendo id y fecha
-    init(id: UUID, imageName: String, opacity: Double, scale: Double, rotation: Double, offsetX: Double, offsetY: Double, isFlipped: Bool, dateCreated: Date) {
+    init(id: UUID, imageName: String, opacity: Double, scale: Double, rotation: Double, offsetX: Double, offsetY: Double, isFlipped: Bool, dateCreated: Date, cameraZoom: CGFloat) {
         self.id = id
         self.imageName = imageName
         self.opacity = opacity
@@ -43,5 +45,6 @@ struct SavedImageConfiguration: Codable, Identifiable {
         self.offsetY = offsetY
         self.isFlipped = isFlipped
         self.dateCreated = dateCreated
+        self.cameraZoom = cameraZoom
     }
 }
