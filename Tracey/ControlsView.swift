@@ -5,7 +5,7 @@
 //  Created by Sergio Navarrete on 31/05/25.
 //
 
-// ControlsView.swift - Con menú hamburguesa animado y diseño minimalista
+// ControlsView.swift - With animated hamburger menu and minimalist design
 import SwiftUI
 
 struct ControlsView: View {
@@ -20,13 +20,13 @@ struct ControlsView: View {
     var body: some View {
         VStack(spacing: 20) {
             ZStack {
-                // Botones del menú - aparecen en círculo perfecto alrededor del botón principal
+                // Menu buttons - appear in a perfect circle around the main button
                 if isMenuExpanded {
                     //let radius: CGFloat = 85
                     let radius: CGFloat = 70
-                    let angleStep: CGFloat = .pi / 3 // 60 grados entre cada botón
+                    let angleStep: CGFloat = .pi / 3 // 60 degrees between each button
 
-                    // Botón Seleccionar imagen (posición 0° - arriba)
+                    // Select image button (position 0° - top)
                     Button(action: {
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                             isMenuExpanded = false
@@ -42,6 +42,7 @@ struct ControlsView: View {
                             .background(Color.blue)
                             .clipShape(Circle())
                             .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                            .accessibilityLabel("Select Image")
                     }
                     .offset(
                         x: radius * sin(0),
@@ -51,7 +52,7 @@ struct ControlsView: View {
                     .opacity(isMenuExpanded ? 1.0 : 0.0)
                     .animation(.spring(response: 0.4, dampingFraction: 0.7).delay(0.1), value: isMenuExpanded)
 
-                    // Botón Ver imágenes guardadas (posición 60° - arriba derecha)
+                    // View saved images button (position 60° - top right)
                     Button(action: {
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                             isMenuExpanded = false
@@ -67,6 +68,7 @@ struct ControlsView: View {
                             .background(Color.green)
                             .clipShape(Circle())
                             .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                            .accessibilityLabel("View Saved Images")
                     }
                     .offset(
                         x: radius * sin(angleStep),
@@ -76,19 +78,19 @@ struct ControlsView: View {
                     .opacity(isMenuExpanded ? 1.0 : 0.0)
                     .animation(.spring(response: 0.4, dampingFraction: 0.7).delay(0.15), value: isMenuExpanded)
 
-                    // Botones adicionales cuando hay imagen
+                    // Additional buttons when there is an image
                     if viewModel.overlayImage != nil {
-                        // Botón Controles de imagen (posición 120° - abajo derecha)
+                        // Image controls button (position 120° - bottom right)
                         Button(action: {
                             if isPropertiesLocked {
-                                // Consumir el tap pero no hacer nada ni ocultar la interfaz
+                                // Consume tap but do nothing and do not hide the interface
                                 return
                             }
-                            // Cerrar menú principal con animación suave
+                            // Close main menu with smooth animation
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                                 isMenuExpanded = false
                             }
-                            // Esperar a que termine la animación de cierre antes de abrir propiedades
+                            // Wait for the close animation to finish before opening properties
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                                 withAnimation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1)) {
                                     showingImageControls = true
@@ -102,6 +104,7 @@ struct ControlsView: View {
                                 .background(isPropertiesLocked ? Color.gray.opacity(0.5) : (showingImageControls ? Color.yellow : Color.gray))
                                 .clipShape(Circle())
                                 .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                                .accessibilityLabel("Image Controls")
                         }
                         .offset(
                             x: radius * sin(angleStep * 2),
@@ -112,10 +115,10 @@ struct ControlsView: View {
                         .animation(.spring(response: 0.4, dampingFraction: 0.7).delay(0.2), value: isMenuExpanded)
                         .disabled(false)
 
-                        // Botón Centrar imagen (posición 180° - abajo)
+                        // Center image button (position 180° - bottom)
                         Button(action: {
                             if isPropertiesLocked {
-                                // Consumir el tap pero no hacer nada ni ocultar la interfaz
+                                // Consume tap but do nothing and do not hide the interface
                                 return
                             }
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
@@ -132,6 +135,7 @@ struct ControlsView: View {
                                 .background(isPropertiesLocked ? Color.gray.opacity(0.5) : Color.purple)
                                 .clipShape(Circle())
                                 .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                                .accessibilityLabel("Center Image")
                         }
                         .offset(
                             x: radius * sin(angleStep * 3),
@@ -142,7 +146,7 @@ struct ControlsView: View {
                         .animation(.spring(response: 0.4, dampingFraction: 0.7).delay(0.25), value: isMenuExpanded)
                         .disabled(false)
 
-                        // Botón Guardar (posición 240° - abajo izquierda)
+                        // Save button (position 240° - bottom left)
                         Button(action: {
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                                 isMenuExpanded = false
@@ -159,6 +163,7 @@ struct ControlsView: View {
                                 .background(Color.orange)
                                 .clipShape(Circle())
                                 .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                                .accessibilityLabel("Save Image")
                         }
                         .offset(
                             x: radius * sin(angleStep * 4),
@@ -168,10 +173,10 @@ struct ControlsView: View {
                         .opacity(isMenuExpanded ? 1.0 : 0.0)
                         .animation(.spring(response: 0.4, dampingFraction: 0.7).delay(0.3), value: isMenuExpanded)
 
-                        // Botón Limpiar imagen (posición 300° - arriba izquierda)
+                        // Clear image button (position 300° - top left)
                         Button(action: {
                             if isPropertiesLocked {
-                                // Consumir el tap pero no hacer nada ni ocultar la interfaz
+                                // Consume tap but do nothing and do not hide the interface
                                 return
                             }
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
@@ -179,7 +184,7 @@ struct ControlsView: View {
                             }
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                                 viewModel.removeOverlayImage()
-                                // Cerrar propiedades suavemente cuando se elimina la imagen
+                                // Close properties smoothly when the image is removed
                                 withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                                     showingImageControls = false
                                 }
@@ -192,6 +197,7 @@ struct ControlsView: View {
                                 .background(isPropertiesLocked ? Color.gray.opacity(0.5) : Color.red)
                                 .clipShape(Circle())
                                 .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                                .accessibilityLabel("Clear Image")
                         }
                         .offset(
                             x: radius * sin(angleStep * 5),
@@ -205,29 +211,29 @@ struct ControlsView: View {
                     }
                 }
 
-                // Botón principal (hamburguesa/cerrar)
+                // Main button (hamburger/close)
                 Button(action: {
-                    // Si el menú de propiedades está abierto, cerrarlo y abrir el menú principal
+                    // If the image controls menu is open, close it and open the main menu
                     if showingImageControls {
-                        // Cerrar menú de propiedades con transición suave
+                        // Close image controls menu with smooth transition
                         withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                             showingImageControls = false
                         }
-                        // Abrir el menú principal después de cerrar propiedades con timing perfecto
+                        // Open the main menu after closing image controls with perfect timing
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                             withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {
                                 isMenuExpanded = true
                             }
                         }
                     } else {
-                        // Toggle del menú principal con animación mejorada
+                        // Toggle main menu with improved animation
                         withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {
                             isMenuExpanded.toggle()
                         }
                     }
                 }) {
                     ZStack {
-                        // Fondo del botón con gradiente dinámico y transiciones suaves
+                        // Button background with dynamic gradient and smooth transitions
                         Circle()
                             .fill(
                                 LinearGradient(
@@ -244,7 +250,7 @@ struct ControlsView: View {
                             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: showingImageControls)
                             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isMenuExpanded)
 
-                        // Ícono que cambia según el contexto con transiciones mejoradas
+                        // Icon that changes according to the context with improved transitions
                         Image(systemName: showingImageControls ? "xmark" : (isMenuExpanded ? "xmark" : "ellipsis"))
                             .font(.title)
                             .fontWeight(.semibold)
@@ -259,7 +265,7 @@ struct ControlsView: View {
                 .animation(.spring(response: 0.4, dampingFraction: 0.8), value: showingImageControls)
                 .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isMenuExpanded)
 
-                // Fondo difuminado cuando el menú está abierto - con transición mejorada
+                // Blurred background when the menu is open - with improved transition
                 if isMenuExpanded {
                     Circle()
                         .fill(Color.black.opacity(0.08))
@@ -274,21 +280,21 @@ struct ControlsView: View {
             }
         }
         .padding(.bottom, 50)
-        // Observar cambios en showingImageControls para cerrar el menú principal con transición suave
+        // Observe changes in showingImageControls to close the main menu with a smooth transition
         .onChange(of: showingImageControls) { oldValue, newValue in
             if newValue && isMenuExpanded {
-                // Si se abre el menú de propiedades y el menú principal está abierto, cerrar el menú principal suavemente
+                // If the image controls menu is opened and the main menu is open, close the main menu smoothly
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                     isMenuExpanded = false
                 }
             }
         }
-        .alert("Guardar Imagen", isPresented: $showingSaveAlert) {
+        .alert("Save Image", isPresented: $showingSaveAlert) {
             Button("OK") {
-                showingImageControls = false // Asegura que el menú principal pueda abrirse después de guardar
+                showingImageControls = false // Ensures the main menu can be opened after saving
             }
         } message: {
-            Text(saveSuccess ? "Imagen guardada correctamente" : "Error al guardar la imagen")
+            Text(saveSuccess ? "Image saved successfully" : "Error saving image")
         }
     }
 }

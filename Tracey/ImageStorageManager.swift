@@ -5,7 +5,7 @@
 //  Created by Sergio Navarrete on 31/05/25.
 //
 
-// ImageStorageManager.swift - Con posición
+// ImageStorageManager.swift - With position
 import SwiftUI
 import Foundation
 
@@ -15,14 +15,14 @@ class ImageStorageManager: ObservableObject {
     private let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
     private let configurationsFileName = "savedConfigurations.json"
 
-    // Guardar el nombre de la imagen cargada actualmente
+    // Store the name of the currently loaded image
     var loadedImageName: String? = nil
 
     init() {
         loadConfigurations()
     }
 
-    // MARK: - Sobrescribir si ya existe una configuración con la misma imagen
+    // MARK: - Overwrite if a configuration with the same image already exists
     func saveImageConfiguration(image: UIImage, opacity: Double, scale: Double, rotation: Double, offsetX: Double = 0, offsetY: Double = 0, isFlipped: Bool = false, overwriteImageName: String? = nil) -> Bool {
         let imageName: String
         if let overwriteName = overwriteImageName {
@@ -32,13 +32,13 @@ class ImageStorageManager: ObservableObject {
         }
         let imageURL = documentsDirectory.appendingPathComponent(imageName)
 
-        // Guardar imagen
+        // Save image
         guard let imageData = image.jpegData(compressionQuality: 0.8) else { return false }
 
         do {
             try imageData.write(to: imageURL)
 
-            // Si es overwrite, reemplazar la configuración existente
+            // If overwrite, replace the existing configuration
             if let overwriteName = overwriteImageName, let idx = savedConfigurations.firstIndex(where: { $0.imageName == overwriteName }) {
                 let oldConfig = savedConfigurations[idx]
                 let newConfig = SavedImageConfiguration(
@@ -50,7 +50,7 @@ class ImageStorageManager: ObservableObject {
                     offsetY: offsetY,
                     isFlipped: isFlipped
                 )
-                // Mantener el mismo id y fecha de creación
+                // Keep the same id and creation date
                 let configWithOldId = SavedImageConfiguration(
                     id: oldConfig.id,
                     imageName: imageName,
@@ -67,7 +67,7 @@ class ImageStorageManager: ObservableObject {
                 return true
             }
 
-            // Crear configuración nueva
+            // Create new configuration
             let configuration = SavedImageConfiguration(
                 imageName: imageName,
                 opacity: opacity,
@@ -92,11 +92,11 @@ class ImageStorageManager: ObservableObject {
     }
 
     func deleteConfiguration(_ configuration: SavedImageConfiguration) {
-        // Eliminar imagen del disco
+        // Delete image from disk
         let imageURL = documentsDirectory.appendingPathComponent(configuration.imageName)
         try? FileManager.default.removeItem(at: imageURL)
 
-        // Eliminar de la lista
+        // Remove from the list
         savedConfigurations.removeAll { $0.id == configuration.id }
         saveConfigurations()
     }

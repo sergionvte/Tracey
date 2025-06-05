@@ -5,7 +5,7 @@
 //  Created by Sergio Navarrete on 31/05/25.
 //
 
-// SavedImagesView.swift - Con botones más grandes y actualización en tiempo real
+// SavedImagesView.swift - With larger buttons and real-time updates
 import SwiftUI
 
 struct SavedImagesView: View {
@@ -26,11 +26,11 @@ struct SavedImagesView: View {
                 }
                 .padding()
             }
-            .navigationTitle("Imágenes Guardadas")
+            .navigationTitle("Saved Images")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Cerrar") {
+                    Button("Close") {
                         isPresented = false
                     }
                 }
@@ -53,9 +53,9 @@ struct SavedImageCard: View {
                     if let image = viewModel.imageStorage.loadImage(named: configuration.imageName) {
                         let side = min(geo.size.width, geo.size.height)
                         let radians = CGFloat(configuration.rotation) * .pi / 180
-                        // El factor máximo para que la imagen nunca sobresalga del frame, incluso a 45°
+                        // The maximum factor so the image never exceeds the frame, even at 45°
                         let fitFactor = 1 / (abs(sin(radians)) + abs(cos(radians)))
-                        let maxFactor: CGFloat = 1 / sqrt(2) // Para 45° en un cuadrado
+                        let maxFactor: CGFloat = 1 / sqrt(2) // For 45° in a square
                         let safeFactor = min(fitFactor, maxFactor)
                         let previewSize = side * 0.85 * safeFactor
                         ZStack {
@@ -63,7 +63,7 @@ struct SavedImageCard: View {
                             Image(uiImage: image)
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
-                                .scaleEffect(x: configuration.isFlipped ? -1 : 1, y: 1) // Flip horizontal si está activado
+                                .scaleEffect(x: configuration.isFlipped ? -1 : 1, y: 1) // Horizontal flip if enabled
                                 .frame(width: previewSize, height: previewSize)
                                 .opacity(configuration.opacity)
                                 .rotationEffect(.degrees(configuration.rotation))
@@ -73,7 +73,7 @@ struct SavedImageCard: View {
                     }
                 }
                 .frame(minWidth: 0, maxWidth: .infinity, minHeight: 120, maxHeight: 140)
-                // Info y botones a la derecha, alineados y centrados
+                // Info and buttons to the right, aligned and centered
                 VStack(alignment: .center, spacing: 14) {
                     VStack(alignment: .center, spacing: 6) {
                         HStack {
@@ -96,7 +96,7 @@ struct SavedImageCard: View {
                             viewModel.loadConfiguration(configuration)
                             isPresented = false
                         }) {
-                            Text("Cargar")
+                            Text("Load")
                                 .font(.system(size: 18, weight: .medium))
                                 .foregroundColor(.white)
                                 .frame(maxWidth: 140)
@@ -107,7 +107,7 @@ struct SavedImageCard: View {
                         Button(action: {
                             showingDeleteAlert = true
                         }) {
-                            Text("Borrar")
+                            Text("Delete")
                                 .font(.system(size: 18, weight: .medium))
                                 .foregroundColor(.white)
                                 .frame(maxWidth: 140)
@@ -126,25 +126,25 @@ struct SavedImageCard: View {
             .frame(maxWidth: .infinity)
             .opacity(isDeleted ? 0 : 1)
             .animation(.easeOut(duration: 0.3), value: isDeleted)
-            .alert("Confirmar eliminación", isPresented: Binding(get: { showingDeleteAlert && !isDeleted }, set: { showingDeleteAlert = $0 })) {
-                Button("Cancelar", role: .cancel) { }
-                Button("Eliminar", role: .destructive) {
+            .alert("Confirm Deletion", isPresented: Binding(get: { showingDeleteAlert && !isDeleted }, set: { showingDeleteAlert = $0 })) {
+                Button("Cancel", role: .cancel) { }
+                Button("Delete", role: .destructive) {
                     withAnimation(.easeOut(duration: 0.3)) {
                         isDeleted = true
                     }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         viewModel.imageStorage.deleteConfiguration(configuration)
-                        showingDeleteAlert = false // Forzar cierre de alerta si aún está activa
+                        showingDeleteAlert = false // Force alert close if still active
                     }
                 }
             } message: {
-                Text("¿Estás seguro de que quieres eliminar esta imagen guardada?")
+                Text("Are you sure you want to delete this saved image?")
             }
         }
     }
 }
 
-// Extensión para esquinas específicas
+// Extension for specific corners
 fileprivate extension View {
     func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
         clipShape( RoundedCorner(radius: radius, corners: corners) )
