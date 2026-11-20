@@ -131,7 +131,10 @@ struct ContentView: View {
                         isAdjustOpen: showingImageControls,
                         onImport: { showingImagePicker = true },
                         onLibrary: { viewModel.showingSavedImages = true },
-                        onToggleLock: toggleLock,
+                        onLock: lock,
+                        onUnlock: unlock,
+                        onLockTapWhileLocked: holdToUnlockHint,
+                        onChangeImageWhileLocked: changeImageWhileLocked,
                         onAdjust: {
                             withAnimation(Theme.spring) { showingImageControls.toggle() }
                             Haptics.light()
@@ -179,6 +182,9 @@ struct ContentView: View {
         // Immersive while drawing: hiding the controls also hides the status bar and home indicator
         .statusBarHidden(!showingControls)
         .persistentSystemOverlays(showingControls ? .automatic : .hidden)
+        // While locked (or immersive) an edge swipe from the pencil hand shouldn't go home or
+        // open Control Center on the first try
+        .defersSystemGestures(on: viewModel.isPropertiesLocked || !showingControls ? .all : [])
         .onAppear {
             // Keep the screen active
             UIApplication.shared.isIdleTimerDisabled = true
@@ -213,17 +219,35 @@ struct ContentView: View {
 
     // MARK: - Actions
 
-    private func toggleLock() {
+    private func lock() {
+        guard !viewModel.isPropertiesLocked else { return }
         withAnimation(Theme.spring) {
-            viewModel.isPropertiesLocked.toggle()
-            if viewModel.isPropertiesLocked { showingImageControls = false }
+            viewModel.isPropertiesLocked = true
+            showingImageControls = false
         }
         Haptics.medium()
-        if viewModel.isPropertiesLocked {
-            showToast(ToastMessage(icon: "lock.fill", text: "Locked · drag & pinch to move the view", tint: Theme.accent))
-        } else {
-            showToast(ToastMessage(icon: "lock.open.fill", text: "Unlocked · edit your reference"))
+        showToast(ToastMessage(icon: "lock.fill", text: "Locked · drag & pinch to move the view",
+                               tint: Theme.accent))
+    }
+
+    private func unlock() {
+        guard viewModel.isPropertiesLocked else { return }
+        withAnimation(Theme.spring) {
+            viewModel.isPropertiesLocked = false
         }
+        Haptics.rigid()
+        showToast(ToastMessage(icon: "lock.open.fill", text: "Unlocked · edit your reference"))
+    }
+
+    /// A plain tap on the lock while locked: explain how to unlock.
+    private func holdToUnlockHint() {
+        Haptics.light()
+        showToast(ToastMessage(icon: "hand.tap.fill", text: "Hold to unlock", tint: Theme.accent))
+    }
+
+    private func changeImageWhileLocked() {
+        Haptics.warning()
+        showToast(ToastMessage(icon: "lock.fill", text: "Unlock to change image", tint: Theme.accent))
     }
 
     private func selectCaptureMode(_ mode: CameraCaptureMode) {
@@ -255,7 +279,7 @@ struct ContentView: View {
 
     private func showToast(_ message: ToastMessage) {
         toast = message
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + message.duration) {
             if toast?.id == message.id { toast = nil }
         }
     }

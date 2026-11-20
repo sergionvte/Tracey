@@ -129,6 +129,8 @@ struct ToastMessage: Equatable {
     var icon: String
     var text: String
     var tint: Color = .white
+    /// Seconds on screen
+    var duration: TimeInterval = 2
 }
 
 struct ToastView: View {
@@ -156,6 +158,7 @@ struct ToastView: View {
 enum Haptics {
     static func light() { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
     static func medium() { UIImpactFeedbackGenerator(style: .medium).impactOccurred() }
+    static func rigid() { UIImpactFeedbackGenerator(style: .rigid).impactOccurred() }
     static func success() { UINotificationFeedbackGenerator().notificationOccurred(.success) }
     static func warning() { UINotificationFeedbackGenerator().notificationOccurred(.warning) }
 }

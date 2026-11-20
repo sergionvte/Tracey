@@ -134,7 +134,11 @@ struct BottomDock: View {
     let isAdjustOpen: Bool
     let onImport: () -> Void
     let onLibrary: () -> Void
-    let onToggleLock: () -> Void
+    let onLock: () -> Void
+    let onUnlock: () -> Void
+    let onLockTapWhileLocked: () -> Void
+    /// Choose image / Library while locked
+    let onChangeImageWhileLocked: () -> Void
     let onAdjust: () -> Void
     let onCenter: () -> Void
     let onSave: () -> Void
@@ -147,15 +151,18 @@ struct BottomDock: View {
         HStack(spacing: 14) {
             // Left: get a reference
             HStack(spacing: 2) {
-                DockIconButton(systemName: "photo.badge.plus", label: "Choose image", action: onImport)
-                DockIconButton(systemName: "square.grid.2x2", label: "Library", action: onLibrary)
+                // Changing the image while locked would throw the alignment away
+                DockIconButton(systemName: "photo.badge.plus", label: "Choose image",
+                               isEnabled: !isLocked, onDisabledTap: onChangeImageWhileLocked, action: onImport)
+                DockIconButton(systemName: "square.grid.2x2", label: "Library",
+                               isEnabled: !isLocked, onDisabledTap: onChangeImageWhileLocked, action: onLibrary)
             }
             .padding(5)
             .glassSurface(Capsule())
             .frame(maxWidth: .infinity, alignment: .trailing)
 
             // Center: the key action while tracing
-            LockButton(isLocked: isLocked, action: onToggleLock)
+            LockButton(isLocked: isLocked, onLock: onLock, onUnlock: onUnlock, onLockedTap: onLockTapWhileLocked)
 
             // Right: edit the reference. Always in the hierarchy and only faded when there is
             // no image: removing it (right as the ⋯ menu it hosts closes, e.g. "Remove Image")
@@ -200,22 +207,63 @@ struct BottomDock: View {
     }
 }
 
+/// Locking is a single tap. Unlocking needs a deliberate press and hold (a ring fills up), so
+/// a stray touch while drawing can't undo the alignment; a plain tap just explains that.
 struct LockButton: View {
     let isLocked: Bool
-    let action: () -> Void
+    let onLock: () -> Void
+    let onUnlock: () -> Void
+    /// Plain tap while locked
+    let onLockedTap: () -> Void
+
+    @State private var holdProgress: CGFloat = 0
+    private let holdDuration: Double = 0.6
 
     var body: some View {
-        Button(action: action) {
-            Image(systemName: isLocked ? "lock.fill" : "lock.open.fill")
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(isLocked ? Color.black : Color.white)
-                .contentTransition(.symbolEffect(.replace))
-                .frame(width: 68, height: 68)
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .glassSurface(Circle(), tint: isLocked ? Theme.accent : nil, interactive: true)
-        .accessibilityLabel(isLocked ? "Unlock image" : "Lock image")
+        Image(systemName: isLocked ? "lock.fill" : "lock.open.fill")
+            .font(.system(size: 24, weight: .semibold))
+            .foregroundStyle(isLocked ? Color.black : Color.white)
+            .contentTransition(.symbolEffect(.replace))
+            .frame(width: 68, height: 68)
+            .contentShape(Circle())
+            .glassSurface(Circle(), tint: isLocked ? Theme.accent : nil, interactive: true)
+            .overlay {
+                // Hold-to-unlock progress ring, just outside the button
+                ZStack {
+                    Circle()
+                        .stroke(Color.black.opacity(0.35), lineWidth: 4)
+                    Circle()
+                        .trim(from: 0, to: holdProgress)
+                        .stroke(Color.white, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                }
+                .padding(-6)
+                .opacity(holdProgress > 0 ? 1 : 0)
+                .allowsHitTesting(false)
+            }
+            .onTapGesture {
+                if isLocked { onLockedTap() } else { onLock() }
+            }
+            .onLongPressGesture(minimumDuration: holdDuration, maximumDistance: 40) {
+                if isLocked { onUnlock() } else { onLock() }
+            } onPressingChanged: { pressing in
+                if pressing && isLocked {
+                    withAnimation(.linear(duration: holdDuration)) { holdProgress = 1 }
+                } else {
+                    withAnimation(.easeOut(duration: 0.2)) { holdProgress = 0 }
+                }
+            }
+            // The ring belongs to the locked state: clear it as soon as it unlocks, even while
+            // the finger is still down
+            .onChange(of: isLocked) { _, locked in
+                if !locked { withAnimation(.easeOut(duration: 0.2)) { holdProgress = 0 } }
+            }
+            .accessibilityElement()
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(isLocked ? "Unlock image" : "Lock image")
+            .accessibilityHint(isLocked ? "Touch and hold to unlock." : "Fixes the image to the camera.")
+            // VoiceOver activation is already deliberate: it unlocks without the hold
+            .accessibilityAction { if isLocked { onUnlock() } else { onLock() } }
     }
 }
 
