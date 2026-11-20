@@ -16,6 +16,15 @@ enum Theme {
     static let accent = Color(red: 1.0, green: 0.72, blue: 0.30)
     static let danger = Color(red: 1.0, green: 0.38, blue: 0.36)
     static let spring = Animation.spring(response: 0.38, dampingFraction: 0.82)
+    /// Subtle dark tint for floating glass so white glyphs stay readable over white paper
+    static let controlTint = Color.black.opacity(0.3)
+}
+
+extension View {
+    /// Soft shadow under white glyphs/text on glass, for contrast over bright paper.
+    func glyphShadow() -> some View {
+        shadow(color: .black.opacity(0.45), radius: 1.5, x: 0, y: 1)
+    }
 }
 
 // MARK: - Glass surface
@@ -86,11 +95,12 @@ struct GlassIconButton: View {
                 // the container and ignores the button's own opacity.
                 .foregroundStyle(.white.opacity(isEnabled ? 1 : 0.35))
                 .contentTransition(.symbolEffect(.replace))
+                .glyphShadow()
                 .frame(width: size, height: size)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .glassSurface(Circle(), tint: isActive && isEnabled ? activeTint : nil, interactive: isEnabled)
+        .glassSurface(Circle(), tint: isActive && isEnabled ? activeTint : Theme.controlTint, interactive: isEnabled)
         .accessibilityLabel(label)
     }
 }
@@ -111,6 +121,7 @@ struct DockIconButton: View {
             Image(systemName: systemName)
                 .font(.system(size: 19, weight: .semibold))
                 .foregroundStyle(isActive ? Color.black : Color.white.opacity(isEnabled ? 1 : 0.35))
+                .shadow(color: .black.opacity(isActive ? 0 : 0.45), radius: 1.5, x: 0, y: 1)
                 .frame(width: 48, height: 48)
                 .background {
                     if isActive { Circle().fill(Theme.accent) }
@@ -152,6 +163,7 @@ struct ToastView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)
                 .lineLimit(1)
+                .glyphShadow()
             if let title = message.actionTitle {
                 Button(action: onAction) {
                     Text(title)
@@ -166,7 +178,7 @@ struct ToastView: View {
         }
         .padding(.horizontal, 18)
         .frame(height: 42)
-        .glassSurface(Capsule())
+        .glassSurface(Capsule(), tint: Theme.controlTint)
         .accessibilityElement(children: message.actionTitle == nil ? .combine : .contain)
     }
 }

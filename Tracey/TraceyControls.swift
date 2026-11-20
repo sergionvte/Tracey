@@ -45,13 +45,16 @@ struct CaptureModeSwitch: View {
                         Text(option.shortTitle)
                             .font(.system(size: 14, weight: .semibold))
                     }
-                    .foregroundStyle(isSelected ? Color.black : Color.white.opacity(0.85))
+                    // Locked: only the segments dim (the glass stays readable) + a lock glyph
+                    .foregroundStyle(isSelected ? Color.black.opacity(isLocked ? 0.6 : 1)
+                                                : Color.white.opacity(isLocked ? 0.4 : 0.85))
+                    .shadow(color: .black.opacity(isSelected ? 0 : 0.45), radius: 1.5, x: 0, y: 1)
                     .padding(.horizontal, 14)
                     .frame(height: 36)
                     .background {
                         if isSelected {
                             Capsule()
-                                .fill(Color.white)
+                                .fill(Color.white.opacity(isLocked ? 0.55 : 1))
                                 .matchedGeometryEffect(id: "selected", in: selection)
                         }
                     }
@@ -60,12 +63,22 @@ struct CaptureModeSwitch: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(option.detail)
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
+                .accessibilityHint(isLocked ? "Unlock to change the camera mode." : "")
             }
+
+            // Collapses to nothing while unlocked (kept in place, no insertion)
+            Image(systemName: "lock.fill")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(Theme.accent)
+                .glyphShadow()
+                .frame(width: isLocked ? 22 : 0)
+                .opacity(isLocked ? 1 : 0)
+                .accessibilityHidden(true)
         }
         .padding(4)
-        .glassSurface(Capsule())
-        .opacity(isLocked ? 0.5 : 1)
+        .glassSurface(Capsule(), tint: Theme.controlTint)
         .animation(Theme.spring, value: mode)
+        .animation(Theme.spring, value: isLocked)
     }
 }
 
@@ -158,7 +171,7 @@ struct BottomDock: View {
                                isEnabled: !isLocked, onDisabledTap: onChangeImageWhileLocked, action: onLibrary)
             }
             .padding(5)
-            .glassSurface(Capsule())
+            .glassSurface(Capsule(), tint: Theme.controlTint)
             .frame(maxWidth: .infinity, alignment: .trailing)
 
             // Center: the key action while tracing
@@ -178,7 +191,7 @@ struct BottomDock: View {
                 moreMenu
             }
             .padding(5)
-            .glassSurface(Capsule())
+            .glassSurface(Capsule(), tint: Theme.controlTint)
             .opacity(hasImage ? 1 : 0)
             .scaleEffect(hasImage ? 1 : 0.85)
             .allowsHitTesting(hasImage)
@@ -200,6 +213,7 @@ struct BottomDock: View {
             Image(systemName: "ellipsis")
                 .font(.system(size: 19, weight: .semibold))
                 .foregroundStyle(.white)
+                .glyphShadow()
                 .frame(width: 48, height: 48)
                 .contentShape(Circle())
         }
@@ -224,9 +238,10 @@ struct LockButton: View {
             .font(.system(size: 24, weight: .semibold))
             .foregroundStyle(isLocked ? Color.black : Color.white)
             .contentTransition(.symbolEffect(.replace))
+            .shadow(color: .black.opacity(isLocked ? 0 : 0.45), radius: 1.5, x: 0, y: 1)
             .frame(width: 68, height: 68)
             .contentShape(Circle())
-            .glassSurface(Circle(), tint: isLocked ? Theme.accent : nil, interactive: true)
+            .glassSurface(Circle(), tint: isLocked ? Theme.accent : Theme.controlTint, interactive: true)
             .overlay {
                 // Hold-to-unlock progress ring, just outside the button
                 ZStack {
