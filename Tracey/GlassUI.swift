@@ -131,10 +131,17 @@ struct ToastMessage: Equatable {
     var tint: Color = .white
     /// Seconds on screen
     var duration: TimeInterval = 2
+    /// Optional button in the toast (e.g. "Undo")
+    var actionTitle: String? = nil
+    var action: (() -> Void)? = nil
+
+    static func == (lhs: ToastMessage, rhs: ToastMessage) -> Bool { lhs.id == rhs.id }
 }
 
 struct ToastView: View {
     let message: ToastMessage
+    /// Called when the toast's button is tapped
+    var onAction: () -> Void = {}
 
     var body: some View {
         HStack(spacing: 8) {
@@ -145,11 +152,22 @@ struct ToastView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)
                 .lineLimit(1)
+            if let title = message.actionTitle {
+                Button(action: onAction) {
+                    Text(title)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(Theme.accent)
+                        .padding(.leading, 6)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(.horizontal, 18)
         .frame(height: 42)
         .glassSurface(Capsule())
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: message.actionTitle == nil ? .combine : .contain)
     }
 }
 

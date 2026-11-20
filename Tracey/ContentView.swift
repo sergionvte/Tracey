@@ -8,7 +8,10 @@ struct ContentView: View {
     @State private var showingControls = true
     @State private var showingImageControls = false // New state for image controls
     @State private var cameraUIView: CameraUIView? = nil // Reference to camera view
+    /// The toast on screen (nil = hidden)
     @State private var toast: ToastMessage? = nil
+    /// Last toast shown; keeps the content while it fades out
+    @State private var lastToast: ToastMessage? = nil
 
     // Snap to center configuration
     private let snapThreshold: CGFloat = 30 // Distance in points to activate snap
@@ -113,11 +116,19 @@ struct ContentView: View {
 
                     Spacer(minLength: 0)
 
-                    if let toast {
-                        ToastView(message: toast)
-                            .id(toast.id)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
+                    // Always in the hierarchy (it can hold a button, e.g. Undo): fading it with
+                    // opacity/hit testing can't leave an invisible toast catching touches.
+                    let isToastVisible = toast != nil
+                    ToastView(
+                        message: lastToast ?? ToastMessage(icon: "info.circle", text: ""),
+                        onAction: performToastAction
+                    )
+                    .opacity(isToastVisible ? 1 : 0)
+                    .offset(y: isToastVisible ? 0 : 12)
+                    .scaleEffect(isToastVisible ? 1 : 0.96)
+                    // Only a toast with a button takes touches; others let taps reach the screen
+                    .allowsHitTesting(isToastVisible && toast?.actionTitle != nil)
+                    .accessibilityHidden(!isToastVisible)
 
                     if showingImageControls && viewModel.overlayImage != nil {
                         AdjustPanel(viewModel: viewModel, isLocked: viewModel.isPropertiesLocked)
@@ -144,10 +155,7 @@ struct ContentView: View {
                             Haptics.light()
                         },
                         onSave: saveConfiguration,
-                        onRemove: {
-                            viewModel.removeOverlayImage()
-                            withAnimation(Theme.spring) { showingImageControls = false }
-                        },
+                        onRemove: removeImage,
                         onLockedTap: lockedWarning
                     )
                     .padding(.horizontal, 16)
@@ -277,8 +285,25 @@ struct ContentView: View {
         showToast(ToastMessage(icon: "lock.fill", text: "Unlock to edit", tint: Theme.accent))
     }
 
+    private func removeImage() {
+        guard let removed = viewModel.removeOverlayImage() else { return }
+        withAnimation(Theme.spring) { showingImageControls = false }
+        showToast(ToastMessage(icon: "trash", text: "Image removed", duration: 5, actionTitle: "Undo") {
+            viewModel.restore(removed)
+            Haptics.light()
+        })
+    }
+
+    private func performToastAction() {
+        guard let message = toast else { return }
+        toast = nil
+        message.action?()
+    }
+
     private func showToast(_ message: ToastMessage) {
+        lastToast = message
         toast = message
+        UIAccessibility.post(notification: .announcement, argument: message.text)
         DispatchQueue.main.asyncAfter(deadline: .now() + message.duration) {
             if toast?.id == message.id { toast = nil }
         }

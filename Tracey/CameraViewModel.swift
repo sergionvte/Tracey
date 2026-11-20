@@ -74,7 +74,33 @@ class CameraViewModel: ObservableObject {
         }
     }
 
-    func removeOverlayImage() {
+    /// Everything needed to bring a removed reference back (Undo).
+    struct RemovedReference {
+        let image: UIImage
+        let opacity: Double
+        let scale: CGFloat
+        let rotation: Double
+        let offset: CGSize
+        let isFlipped: Bool
+        let loadedImageName: String?
+        let cameraZoom: CGFloat
+    }
+
+    /// Removes the reference and returns what is needed to undo it.
+    @discardableResult
+    func removeOverlayImage() -> RemovedReference? {
+        let removed = overlayImage.map { image in
+            RemovedReference(
+                image: image,
+                opacity: imageOpacity,
+                scale: imageScale,
+                rotation: imageRotation,
+                offset: imageOffset,
+                isFlipped: isFlipped,
+                loadedImageName: imageStorage.loadedImageName,
+                cameraZoom: cameraUIViewRef?.getCurrentZoomFactor() ?? 1.0
+            )
+        }
         withAnimation(.easeInOut(duration: 0.2)) {
             overlayImage = nil
         }
@@ -86,6 +112,27 @@ class CameraViewModel: ObservableObject {
         resetViewport()
         // Reiniciar zoom de cámara al borrar imagen
         cameraUIViewRef?.setZoomFactor(1.0)
+        return removed
+    }
+
+    /// Undo for "Remove Image". Does nothing if another image was loaded in the meantime.
+    func restore(_ removed: RemovedReference) {
+        guard overlayImage == nil else { return }
+        // Put the transforms back first so the image reappears exactly where it was
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            imageOpacity = removed.opacity
+            imageScale = removed.scale
+            imageRotation = removed.rotation
+            imageOffset = removed.offset
+            isFlipped = removed.isFlipped
+        }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            overlayImage = removed.image
+        }
+        imageStorage.loadedImageName = removed.loadedImageName
+        cameraUIViewRef?.setZoomFactor(removed.cameraZoom)
     }
 
     func loadConfiguration(_ configuration: SavedImageConfiguration) {
