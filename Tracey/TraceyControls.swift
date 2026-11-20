@@ -142,43 +142,42 @@ struct BottomDock: View {
     let onLockedTap: () -> Void
 
     var body: some View {
-        GlassGroup(spacing: 14) {
-            HStack(spacing: 14) {
-                // Left: get a reference
-                HStack(spacing: 2) {
-                    DockIconButton(systemName: "photo.badge.plus", label: "Choose image", action: onImport)
-                    DockIconButton(systemName: "square.grid.2x2", label: "Library", action: onLibrary)
-                }
-                .padding(5)
-                .glassSurface(Capsule())
-                .frame(maxWidth: .infinity, alignment: .trailing)
-
-                // Center: the key action while tracing
-                LockButton(isLocked: isLocked, action: onToggleLock)
-
-                // Right: edit the reference
-                Group {
-                    if hasImage {
-                        HStack(spacing: 2) {
-                            DockIconButton(
-                                systemName: "slider.horizontal.3",
-                                label: "Adjust image",
-                                isActive: isAdjustOpen,
-                                isEnabled: !isLocked,
-                                onDisabledTap: onLockedTap,
-                                action: onAdjust
-                            )
-                            moreMenu
-                        }
-                        .padding(5)
-                        .glassSurface(Capsule())
-                        .transition(.scale.combined(with: .opacity))
-                    } else {
-                        Color.clear.frame(width: 1, height: 1)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+        // No GlassEffectContainer here: the three pieces don't need to morph together, and
+        // inside a container the glass ignores opacity (it couldn't fade out in place).
+        HStack(spacing: 14) {
+            // Left: get a reference
+            HStack(spacing: 2) {
+                DockIconButton(systemName: "photo.badge.plus", label: "Choose image", action: onImport)
+                DockIconButton(systemName: "square.grid.2x2", label: "Library", action: onLibrary)
             }
+            .padding(5)
+            .glassSurface(Capsule())
+            .frame(maxWidth: .infinity, alignment: .trailing)
+
+            // Center: the key action while tracing
+            LockButton(isLocked: isLocked, action: onToggleLock)
+
+            // Right: edit the reference. Always in the hierarchy and only faded when there is
+            // no image: removing it (right as the ⋯ menu it hosts closes, e.g. "Remove Image")
+            // made the glass capsule slide down off screen.
+            HStack(spacing: 2) {
+                DockIconButton(
+                    systemName: "slider.horizontal.3",
+                    label: "Adjust image",
+                    isActive: isAdjustOpen,
+                    isEnabled: !isLocked,
+                    onDisabledTap: onLockedTap,
+                    action: onAdjust
+                )
+                moreMenu
+            }
+            .padding(5)
+            .glassSurface(Capsule())
+            .opacity(hasImage ? 1 : 0)
+            .scaleEffect(hasImage ? 1 : 0.85)
+            .allowsHitTesting(hasImage)
+            .accessibilityHidden(!hasImage)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .animation(Theme.spring, value: hasImage)
     }
