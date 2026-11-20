@@ -400,8 +400,7 @@
 				DEVELOPMENT_TEAM = U7S7N6VUPM;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Esta app necesita acceso a la cámara para mostrar la vista de referencia";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Esta app necesita acceso a la galería para seleccionar imágenes de referencia";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Tracey shows your camera so you can trace the reference onto paper.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -430,8 +429,7 @@
 				DEVELOPMENT_TEAM = U7S7N6VUPM;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Esta app necesita acceso a la cámara para mostrar la vista de referencia";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Esta app necesita acceso a la galería para seleccionar imágenes de referencia";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Tracey shows your camera so you can trace the reference onto paper.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

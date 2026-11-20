@@ -62,6 +62,8 @@ class CameraViewModel: ObservableObject {
     @Published var showingSavedImages = false
     /// True while the user is dragging the image (shows the center snap guides)
     @Published var isDraggingImage = false
+    /// Camera access is denied or restricted (shows a card that links to Settings)
+    @Published var isCameraAccessDenied = false
 
     let imageStorage = ImageStorageManager()
 

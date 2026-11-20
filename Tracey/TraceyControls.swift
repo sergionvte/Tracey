@@ -461,3 +461,52 @@ struct EmptyStateCard: View {
         .onTapGesture {}
     }
 }
+
+// MARK: - Camera access
+
+/// Shown when the camera should run but access is denied or restricted.
+struct CameraAccessCard: View {
+    let onOpenSettings: () -> Void
+
+    var body: some View {
+        VStack(spacing: 18) {
+            ZStack {
+                Circle()
+                    .fill(Theme.accent.opacity(0.18))
+                    .frame(width: 64, height: 64)
+                Image(systemName: "video.slash.fill")
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+            }
+            .accessibilityHidden(true)
+
+            VStack(spacing: 6) {
+                Text("Camera access is off")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(.white)
+                Text("Tracey needs the camera to show your paper.")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.75))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Button(action: onOpenSettings) {
+                Label("Open Settings", systemImage: "gearshape.fill")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.black)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(Theme.accent, in: Capsule())
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(24)
+        .frame(maxWidth: 360)
+        .glassSurface(RoundedRectangle(cornerRadius: 34, style: .continuous), tint: .black.opacity(0.35))
+        // Taps on the card must not hide the controls
+        .contentShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
+        .onTapGesture {}
+    }
+}

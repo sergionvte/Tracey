@@ -74,6 +74,10 @@ struct CameraView: UIViewRepresentable {
         let cameraView = CameraUIView()
         cameraView.isZoomEnabled = isZoomEnabled
         cameraView.onSingleTap = onSingleTap
+        cameraView.onCameraAccessDenied = { [weak viewModel] denied in
+            guard let viewModel, viewModel.isCameraAccessDenied != denied else { return }
+            withAnimation(Theme.spring) { viewModel.isCameraAccessDenied = denied }
+        }
         cameraView.onViewportTransformedChange = { [weak viewModel] transformed in
             withAnimation(.easeInOut(duration: 0.2)) {
                 viewModel?.isViewportTransformed = transformed
@@ -202,6 +206,13 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
     /// Zoom requested before the camera was configured (e.g. loading a saved reference).
     private var pendingZoom: CGFloat?
 
+    /// Reports (on the main thread) whether camera access is denied/restricted.
+    var onCameraAccessDenied: ((Bool) -> Void)?
+
+    private func reportCameraAccess(denied: Bool) {
+        DispatchQueue.main.async { [weak self] in self?.onCameraAccessDenied?(denied) }
+    }
+
     /// Starts the camera when a reference image is on screen and stops it otherwise.
     func setCameraActive(_ active: Bool) {
         guard active != isCameraActive else { return }
@@ -216,9 +227,28 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
         backgroundColor = active ? .black : .clear
         CATransaction.commit()
 
+        if active {
+            switch AVCaptureDevice.authorizationStatus(for: .video) {
+            case .authorized:
+                reportCameraAccess(denied: false)
+            case .notDetermined:
+                // Ask now, and hold the session queue until the user answers so the start
+                // below runs with the answer
+                let queue = sessionQueue
+                queue.suspend()
+                AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                    self?.reportCameraAccess(denied: !granted)
+                    queue.resume()
+                }
+            default: // .denied, .restricted
+                reportCameraAccess(denied: true)
+            }
+        }
+
         sessionQueue.async { [weak self] in
             guard let self else { return }
             if active {
+                guard AVCaptureDevice.authorizationStatus(for: .video) == .authorized else { return }
                 if !self.isSessionConfigured {
                     self.configureSession(mode: mode)
                 }
@@ -231,8 +261,8 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
         }
     }
 
-    /// Must be called on `sessionQueue`. First call adds the camera input (this is when iOS
-    /// asks for camera permission).
+    /// Must be called on `sessionQueue`, once camera access is authorized. First call adds the
+    /// camera input.
     private func configureSession(mode: CameraCaptureMode) {
         guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
             print("No camera available")

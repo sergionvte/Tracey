@@ -180,6 +180,19 @@ struct ContentView: View {
                 .scaleEffect(showsWelcome ? 1 : 0.96)
                 .allowsHitTesting(showsWelcome)
                 .accessibilityHidden(!showsWelcome)
+
+                // Camera access denied: explain and link to Settings (same in-place fading)
+                let showsCameraAccess = viewModel.isCameraAccessDenied && viewModel.overlayImage != nil && showingControls
+                CameraAccessCard(onOpenSettings: {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                })
+                .padding(.horizontal, 32)
+                .opacity(showsCameraAccess ? 1 : 0)
+                .scaleEffect(showsCameraAccess ? 1 : 0.96)
+                .allowsHitTesting(showsCameraAccess)
+                .accessibilityHidden(!showsCameraAccess)
             }
             .animation(Theme.spring, value: showingImageControls)
             .animation(Theme.spring, value: toast)
