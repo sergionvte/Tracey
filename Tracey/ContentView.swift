@@ -263,15 +263,22 @@ struct ContentView: View {
                 .opacity(showingControls ? 1 : 0)
                 .allowsHitTesting(showingControls)
 
-                // Welcome card until there is a reference image
-                if viewModel.overlayImage == nil && showingControls {
-                    EmptyStateCard(
-                        onImport: { showingImagePicker = true },
-                        onLibrary: { viewModel.showingSavedImages = true }
-                    )
-                    .padding(.horizontal, 32)
-                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
-                }
+                // Welcome card until there is a reference image.
+                // Always in the hierarchy (never inserted/removed): if it were removed with a
+                // transition while the picker/library sheet covers the screen, SwiftUI can leave
+                // the invisible card stuck in the middle swallowing touches, so the new image
+                // couldn't be dragged until some other state change. Driving visibility and
+                // hit-testing from state makes it stop catching touches immediately.
+                let showsWelcome = viewModel.overlayImage == nil && showingControls
+                EmptyStateCard(
+                    onImport: { showingImagePicker = true },
+                    onLibrary: { viewModel.showingSavedImages = true }
+                )
+                .padding(.horizontal, 32)
+                .opacity(showsWelcome ? 1 : 0)
+                .scaleEffect(showsWelcome ? 1 : 0.96)
+                .allowsHitTesting(showsWelcome)
+                .accessibilityHidden(!showsWelcome)
             }
             .animation(Theme.spring, value: showingImageControls)
             .animation(Theme.spring, value: toast)
