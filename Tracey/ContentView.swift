@@ -13,8 +13,6 @@ struct ContentView: View {
     @State private var gestureInProgress = false
     @State private var currentGestureScale: CGFloat = 1.0 // For incremental zoom
     @State private var cameraUIView: CameraUIView? = nil // Reference to camera view
-    @State private var liveViewport: Viewport? = nil // Viewport while a move/zoom gesture is in progress
-    @State private var lastPinch: (magnification: CGFloat, startLocation: CGPoint)? = nil // Kept if a finger lifts mid-gesture
 
     // Snap to center configuration
     private let snapThreshold: CGFloat = 30 // Distance in points to activate snap
@@ -26,22 +24,42 @@ struct ContentView: View {
                 y: geometry.size.height / 2
             )
 
-            let viewport = liveViewport ?? Viewport(scale: viewModel.viewportScale, offset: viewModel.viewportOffset)
-
             ZStack {
-                // Canvas: camera + overlay image rendered as ONE unit. While locked, the whole
-                // canvas is moved/zoomed together so the image stays fixed on the camera feed.
-                ZStack {
-                // Camera view
-                CameraView(viewModel: viewModel, cameraUIView: $cameraUIView, isZoomEnabled: !viewModel.isPropertiesLocked)
-                    .ignoresSafeArea()
+                // Camera view. The overlay image is DRAWN inside the camera view (same UIKit
+                // container as the camera preview), so while locked, moving/zooming the screen
+                // moves both as one piece and they can never drift apart.
+                CameraView(
+                    viewModel: viewModel,
+                    cameraUIView: $cameraUIView,
+                    isZoomEnabled: !viewModel.isPropertiesLocked,
+                    isViewportEnabled: viewModel.isPropertiesLocked,
+                    overlay: OverlayRenderState(
+                        image: viewModel.overlayImage,
+                        opacity: viewModel.imageOpacity,
+                        scale: viewModel.imageScale * currentGestureScale,
+                        rotation: viewModel.imageRotation,
+                        offset: CGSize(
+                            width: viewModel.imageOffset.width + dragOffset.width,
+                            height: viewModel.imageOffset.height + dragOffset.height
+                        ),
+                        isFlipped: viewModel.isFlipped
+                    ),
+                    overlayLayoutRect: CGRect(
+                        x: geometry.safeAreaInsets.leading,
+                        y: geometry.safeAreaInsets.top,
+                        width: geometry.size.width,
+                        height: geometry.size.height
+                    )
+                )
+                .ignoresSafeArea()
 
-                // Overlay image with improved gestures
-                if let overlayImage = viewModel.overlayImage {
-                    Image(uiImage: overlayImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .opacity(viewModel.imageOpacity)
+                // Invisible touch target with the same layout as the drawn image, used to
+                // edit it while unlocked. While locked it is removed so touches reach the camera
+                // view (drag/pinch move the whole screen, tap focuses).
+                if let overlayImage = viewModel.overlayImage, !viewModel.isPropertiesLocked {
+                    Color.clear
+                        .aspectRatio(overlayImage.size, contentMode: .fit)
+                        .contentShape(Rectangle())
                         .scaleEffect(x: viewModel.isFlipped ? -1 : 1, y: 1) // Flip horizontally if enabled
                         .scaleEffect(viewModel.imageScale * currentGestureScale) // Apply incremental scale
                         .rotationEffect(.degrees(viewModel.imageRotation))
@@ -139,23 +157,6 @@ struct ContentView: View {
                                     }
                                 }
                         )
-                }
-                }
-                .frame(width: geometry.size.width, height: geometry.size.height)
-                .scaleEffect(viewport.scale)
-                .offset(viewport.offset)
-
-                // Viewport gesture layer: only while locked. Drag moves the whole screen,
-                // pinch zooms it, tap focuses the camera (and toggles controls as usual).
-                if viewModel.isPropertiesLocked {
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .ignoresSafeArea()
-                        .gesture(viewportGesture(in: geometry))
-                        .onTapGesture(coordinateSpace: .named(Self.rootSpace)) { location in
-                            focusCamera(atRootPoint: location, viewport: viewport, geometry: geometry)
-                            toggleControls()
-                        }
                 }
 
                 // Visual snap indicators (only if not locked)
@@ -358,8 +359,6 @@ struct ContentView: View {
                 .opacity(showingControls ? 1 : 0)
                 .animation(.easeInOut(duration: 0.3), value: showingControls)
             }
-            .coordinateSpace(.named(Self.rootSpace))
-            .animation(.easeInOut(duration: 0.2), value: viewModel.isViewportTransformed)
         }
         .onAppear {
             // Keep the screen active
@@ -389,86 +388,6 @@ struct ContentView: View {
                 showingImageControls = false
             }
         }
-    }
-
-    // MARK: - Viewport (move/zoom the whole screen while locked)
-
-    private static let rootSpace = "root"
-
-    /// Pinch zooms around the fingers, drag pans. Both apply to camera + image together.
-    private func viewportGesture(in geometry: GeometryProxy) -> some Gesture {
-        MagnifyGesture()
-            .simultaneously(with: DragGesture())
-            .onChanged { value in
-                if let magnify = value.first {
-                    lastPinch = (magnify.magnification, magnify.startLocation)
-                }
-                liveViewport = viewport(pinch: lastPinch, translation: value.second?.translation, in: geometry)
-            }
-            .onEnded { value in
-                if let magnify = value.first {
-                    lastPinch = (magnify.magnification, magnify.startLocation)
-                }
-                let final = viewport(pinch: lastPinch, translation: value.second?.translation, in: geometry)
-                viewModel.viewportScale = final.scale
-                viewModel.viewportOffset = final.offset
-                liveViewport = nil
-                lastPinch = nil
-            }
-    }
-
-    private func viewport(pinch: (magnification: CGFloat, startLocation: CGPoint)?, translation: CGSize?, in geometry: GeometryProxy) -> Viewport {
-        let startScale = viewModel.viewportScale
-        let startOffset = viewModel.viewportOffset
-        let range = CameraViewModel.viewportScaleRange
-        let center = CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2)
-
-        var scale = startScale
-        var offset = startOffset
-
-        if let pinch {
-            scale = min(max(startScale * pinch.magnification, range.lowerBound), range.upperBound)
-            // Keep the point under the fingers fixed while zooming.
-            // The gesture layer ignores the safe area, so shift its location into root space.
-            let anchor = CGPoint(
-                x: pinch.startLocation.x - geometry.safeAreaInsets.leading,
-                y: pinch.startLocation.y - geometry.safeAreaInsets.top
-            )
-            let ratio = scale / startScale
-            offset.width += (anchor.x - center.x - startOffset.width) * (1 - ratio)
-            offset.height += (anchor.y - center.y - startOffset.height) * (1 - ratio)
-        }
-
-        if let translation {
-            offset.width += translation.width
-            offset.height += translation.height
-        }
-
-        // Never let the canvas leave the screen completely
-        let maxX = geometry.size.width * scale / 2
-        let maxY = geometry.size.height * scale / 2
-        offset.width = min(max(offset.width, -maxX), maxX)
-        offset.height = min(max(offset.height, -maxY), maxY)
-
-        guard scale.isFinite, offset.width.isFinite, offset.height.isFinite else {
-            return Viewport(scale: startScale, offset: startOffset)
-        }
-        return Viewport(scale: scale, offset: offset)
-    }
-
-    /// Converts a tap on the (transformed) screen back to the camera view's own coordinates.
-    private func focusCamera(atRootPoint point: CGPoint, viewport: Viewport, geometry: GeometryProxy) {
-        let center = CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2)
-        let canvasPoint = CGPoint(
-            x: center.x + (point.x - center.x - viewport.offset.width) / viewport.scale,
-            y: center.y + (point.y - center.y - viewport.offset.height) / viewport.scale
-        )
-        // The camera view ignores the safe area, so its origin is the screen's top-left
-        let cameraPoint = CGPoint(
-            x: canvasPoint.x + geometry.safeAreaInsets.leading,
-            y: canvasPoint.y + geometry.safeAreaInsets.top
-        )
-        cameraUIView?.focus(at: cameraPoint)
     }
 
     // Function to snap to cardinal angles
@@ -507,12 +426,6 @@ struct ContentView: View {
 
         return finalOffset
     }
-}
-
-/// Transform applied to the camera + overlay canvas as a single unit.
-struct Viewport: Equatable {
-    var scale: CGFloat
-    var offset: CGSize
 }
 
 // Snap indicators view

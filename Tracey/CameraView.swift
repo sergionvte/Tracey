@@ -35,18 +35,39 @@ enum CameraCaptureMode: String, Codable, CaseIterable {
     }
 }
 
+/// Everything needed to draw the overlay image exactly like the SwiftUI layout used to:
+/// aspect-fit inside the safe area, then flip → scale → rotate (about its center) → offset.
+struct OverlayRenderState: Equatable {
+    var image: UIImage?
+    var opacity: Double
+    var scale: CGFloat
+    var rotation: Double // degrees, clockwise
+    var offset: CGSize
+    var isFlipped: Bool
+}
+
 struct CameraView: UIViewRepresentable {
     let viewModel: CameraViewModel
     @Binding var cameraUIView: CameraUIView?
     var isZoomEnabled: Bool
+    /// When true (properties locked) drag/pinch move and zoom camera + image together.
+    var isViewportEnabled: Bool
+    var overlay: OverlayRenderState
+    /// Rect (in this view's coordinates) the overlay image is fitted and centered in.
+    var overlayLayoutRect: CGRect
 
     func makeUIView(context: Context) -> CameraUIView {
         let cameraView = CameraUIView()
         cameraView.isZoomEnabled = isZoomEnabled
+        cameraView.onViewportTransformedChange = { [weak viewModel] transformed in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                viewModel?.isViewportTransformed = transformed
+            }
+        }
         cameraView.setupCamera(mode: viewModel.captureMode)
         DispatchQueue.main.async {
             cameraUIView = cameraView
-            // Weak reference so the ViewModel can drive zoom / capture mode
+            // Weak reference so the ViewModel can drive zoom / capture mode / viewport
             viewModel.cameraUIViewRef = cameraView
         }
         return cameraView
@@ -54,13 +75,68 @@ struct CameraView: UIViewRepresentable {
 
     func updateUIView(_ uiView: CameraUIView, context: Context) {
         uiView.isZoomEnabled = isZoomEnabled
+        uiView.isViewportEnabled = isViewportEnabled
+        uiView.overlayLayoutRect = overlayLayoutRect
+        let animated = context.transaction.animation != nil && !context.transaction.disablesAnimations
+        uiView.setOverlay(overlay, animated: animated)
     }
 }
 
-class CameraUIView: UIView {
+class CameraUIView: UIView, UIGestureRecognizerDelegate {
     private let captureSession = AVCaptureSession()
     private var previewLayer: AVCaptureVideoPreviewLayer!
     private var captureDevice: AVCaptureDevice?
+
+    /// Single container for the camera preview AND the overlay image.
+    /// The viewport transform is applied to this view only, so both always move together.
+    private let contentView = UIView()
+    private let overlayImageView = UIImageView()
+    private var overlayState: OverlayRenderState?
+
+    var overlayLayoutRect: CGRect = .zero {
+        didSet {
+            if overlayLayoutRect != oldValue { layoutOverlay() }
+        }
+    }
+
+    // Viewport (the "move the whole screen" transform)
+    private var viewportScale: CGFloat = 1.0
+    private var viewportOffset: CGPoint = .zero
+    private let viewportScaleRange: ClosedRange<CGFloat> = 1.0...6.0
+    private var lastReportedTransformed = false
+    var onViewportTransformedChange: ((Bool) -> Void)?
+    private var panGesture: UIPanGestureRecognizer?
+
+    var isViewportEnabled: Bool = false {
+        didSet {
+            guard isViewportEnabled != oldValue else { return }
+            panGesture?.isEnabled = isViewportEnabled
+            if !isViewportEnabled {
+                // Unlocking returns to the normal view so the image can be edited
+                resetViewport(animated: true)
+            }
+        }
+    }
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        commonInit()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        commonInit()
+    }
+
+    private func commonInit() {
+        backgroundColor = .black
+        clipsToBounds = true
+        contentView.isUserInteractionEnabled = false // all gestures are handled by self
+        addSubview(contentView)
+        overlayImageView.contentMode = .scaleToFill
+        overlayImageView.isHidden = true
+        contentView.addSubview(overlayImageView)
+    }
 
     /// All session/device configuration runs serially here, off the main thread.
     private let sessionQueue = DispatchQueue(label: "tracey.camera.session")
@@ -74,7 +150,7 @@ class CameraUIView: UIView {
 
         previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
         previewLayer.videoGravity = Self.videoGravity(for: mode)
-        layer.addSublayer(previewLayer)
+        contentView.layer.insertSublayer(previewLayer, at: 0) // below the overlay image
 
         setupGestures()
 
@@ -106,7 +182,129 @@ class CameraUIView: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        previewLayer?.frame = bounds
+        CATransaction.begin()
+        CATransaction.setDisableActions(true) // no implicit animations → no lag behind the image
+        // contentView may carry a transform, so size it via bounds/center (never frame)
+        contentView.bounds = bounds
+        contentView.center = CGPoint(x: bounds.midX, y: bounds.midY)
+        previewLayer?.frame = contentView.bounds
+        CATransaction.commit()
+        layoutOverlay()
+        clampViewport()
+        applyViewportTransform()
+    }
+
+    // MARK: - Overlay image
+
+    func setOverlay(_ state: OverlayRenderState, animated: Bool) {
+        guard state != overlayState else { return }
+        overlayState = state
+        if animated && !overlayImageView.isHidden && state.image != nil {
+            UIView.animate(withDuration: 0.25, delay: 0, options: [.beginFromCurrentState, .curveEaseOut, .allowUserInteraction]) {
+                self.layoutOverlay()
+            }
+        } else {
+            layoutOverlay()
+        }
+    }
+
+    private func layoutOverlay() {
+        guard let state = overlayState, let image = state.image,
+              overlayLayoutRect.width > 0, overlayLayoutRect.height > 0,
+              image.size.width > 0, image.size.height > 0 else {
+            overlayImageView.isHidden = true
+            overlayImageView.image = nil
+            return
+        }
+
+        if overlayImageView.image !== image {
+            overlayImageView.image = image
+        }
+        overlayImageView.isHidden = false
+
+        // Aspect-fit inside the layout rect (same as SwiftUI .aspectRatio(contentMode: .fit))
+        let fit = min(overlayLayoutRect.width / image.size.width, overlayLayoutRect.height / image.size.height)
+        overlayImageView.bounds = CGRect(x: 0, y: 0, width: image.size.width * fit, height: image.size.height * fit)
+        overlayImageView.center = CGPoint(
+            x: overlayLayoutRect.midX + state.offset.width,
+            y: overlayLayoutRect.midY + state.offset.height
+        )
+        // flip → scale → rotate, all about the image center
+        let flipScaleX = (state.isFlipped ? -1 : 1) * state.scale
+        overlayImageView.transform = CGAffineTransform(scaleX: flipScaleX, y: state.scale)
+            .concatenating(CGAffineTransform(rotationAngle: CGFloat(state.rotation) * .pi / 180))
+        overlayImageView.alpha = CGFloat(state.opacity)
+    }
+
+    // MARK: - Viewport (move / zoom the whole screen while locked)
+
+    private func applyViewportTransform() {
+        // Scale about the screen center, then translate
+        contentView.transform = CGAffineTransform(scaleX: viewportScale, y: viewportScale)
+            .concatenating(CGAffineTransform(translationX: viewportOffset.x, y: viewportOffset.y))
+    }
+
+    private func clampViewport() {
+        viewportScale = min(max(viewportScale, viewportScaleRange.lowerBound), viewportScaleRange.upperBound)
+        // Never let the canvas leave the screen completely
+        let maxX = bounds.width * viewportScale / 2
+        let maxY = bounds.height * viewportScale / 2
+        viewportOffset.x = min(max(viewportOffset.x, -maxX), maxX)
+        viewportOffset.y = min(max(viewportOffset.y, -maxY), maxY)
+    }
+
+    private func reportViewportState() {
+        let transformed = abs(viewportScale - 1) > 0.001 || abs(viewportOffset.x) > 0.5 || abs(viewportOffset.y) > 0.5
+        guard transformed != lastReportedTransformed else { return }
+        lastReportedTransformed = transformed
+        onViewportTransformedChange?(transformed)
+    }
+
+    func resetViewport(animated: Bool) {
+        viewportScale = 1.0
+        viewportOffset = .zero
+        if animated {
+            UIView.animate(withDuration: 0.4, delay: 0, usingSpringWithDamping: 0.85, initialSpringVelocity: 0,
+                           options: [.beginFromCurrentState, .allowUserInteraction]) {
+                self.applyViewportTransform()
+            }
+        } else {
+            applyViewportTransform()
+        }
+        reportViewportState()
+    }
+
+    @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
+        guard isViewportEnabled else { return }
+        let translation = gesture.translation(in: self)
+        viewportOffset.x += translation.x
+        viewportOffset.y += translation.y
+        gesture.setTranslation(.zero, in: self)
+        clampViewport()
+        applyViewportTransform()
+        reportViewportState()
+    }
+
+    private func handleViewportPinch(_ gesture: UIPinchGestureRecognizer) {
+        guard gesture.state == .began || gesture.state == .changed else { return }
+        let newScale = min(max(viewportScale * gesture.scale, viewportScaleRange.lowerBound), viewportScaleRange.upperBound)
+        let ratio = newScale / viewportScale
+        // Keep the point between the fingers fixed while zooming
+        let location = gesture.location(in: self)
+        let fromCenter = CGPoint(x: location.x - bounds.midX, y: location.y - bounds.midY)
+        viewportOffset.x = fromCenter.x * (1 - ratio) + viewportOffset.x * ratio
+        viewportOffset.y = fromCenter.y * (1 - ratio) + viewportOffset.y * ratio
+        viewportScale = newScale
+        gesture.scale = 1.0
+        clampViewport()
+        applyViewportTransform()
+        reportViewportState()
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                           shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        // Pan + pinch together: two fingers can move and zoom at the same time
+        true
     }
 
     // MARK: - Capture mode
@@ -201,7 +399,14 @@ class CameraUIView: UIView {
 
     private func setupGestures() {
         let pinchGesture = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
+        pinchGesture.delegate = self
         addGestureRecognizer(pinchGesture)
+
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+        pan.delegate = self
+        pan.isEnabled = isViewportEnabled
+        addGestureRecognizer(pan)
+        panGesture = pan
 
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTapToFocus(_:)))
         tapGesture.numberOfTapsRequired = 1
@@ -209,6 +414,11 @@ class CameraUIView: UIView {
     }
 
     @objc private func handlePinch(_ gesture: UIPinchGestureRecognizer) {
+        if isViewportEnabled {
+            handleViewportPinch(gesture)
+            return
+        }
+        // Unlocked: pinch changes the real camera zoom
         guard isZoomEnabled else { gesture.scale = 1.0; return }
         guard let device = captureDevice else { return }
 
@@ -230,11 +440,13 @@ class CameraUIView: UIView {
         focus(at: CGPoint(x: bounds.midX, y: bounds.midY))
     }
 
-    /// Focuses/exposes at a point expressed in this view's own (untransformed) coordinates.
+    /// Focuses/exposes at a point on screen (this view's coordinates), accounting for the viewport.
     func focus(at touchPoint: CGPoint) {
         guard let device = captureDevice, let previewLayer else { return }
 
-        let focusPoint = previewLayer.captureDevicePointConverted(fromLayerPoint: touchPoint)
+        // Undo the viewport move/zoom to find which part of the camera image was touched
+        let layerPoint = contentView.convert(touchPoint, from: self)
+        let focusPoint = previewLayer.captureDevicePointConverted(fromLayerPoint: layerPoint)
 
         do {
             try device.lockForConfiguration()

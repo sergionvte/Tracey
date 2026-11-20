@@ -158,23 +158,13 @@ class CameraViewModel: ObservableObject {
     }
 
     // MARK: - Viewport (move/zoom the whole screen: camera + overlay together)
+    // The transform itself lives in CameraUIView (UIKit) so camera and image move as one piece.
 
-    /// Scale applied to the camera + overlay canvas as a single unit (only while locked).
-    @Published var viewportScale: CGFloat = 1.0
-    /// Offset applied to the camera + overlay canvas as a single unit (only while locked).
-    @Published var viewportOffset: CGSize = .zero
-
-    static let viewportScaleRange: ClosedRange<CGFloat> = 1.0...6.0
-
-    var isViewportTransformed: Bool {
-        viewportScale != 1.0 || viewportOffset != .zero
-    }
+    /// True while the locked screen is moved/zoomed away from its normal position.
+    @Published var isViewportTransformed: Bool = false
 
     func resetViewport() {
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-            viewportScale = 1.0
-            viewportOffset = .zero
-        }
+        cameraUIViewRef?.resetViewport(animated: true)
     }
 
     // MARK: - Capture mode (video = smoother, photo = full frame)
