@@ -122,16 +122,26 @@ struct SavedReferenceCard: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color.black.opacity(0.35))
 
-            if let thumbnail {
-                // Rotated images are scaled down so they never spill out of the tile
-                let radians = CGFloat(configuration.rotation) * .pi / 180
-                let fit = 1 / (abs(sin(radians)) + abs(cos(radians)))
-                Image(uiImage: thumbnail)
-                    .resizable()
-                    .scaledToFit()
-                    .scaleEffect(x: configuration.isFlipped ? -fit : fit, y: fit)
-                    .rotationEffect(.degrees(configuration.rotation))
-                    .padding(12)
+            if let thumbnail, thumbnail.size.width > 0, thumbnail.size.height > 0 {
+                GeometryReader { geo in
+                    // Fit the image, then shrink it until its ROTATED bounding box fits the
+                    // tile too — works for any aspect ratio, not just squares.
+                    let available = CGSize(width: max(geo.size.width - 24, 1), height: max(geo.size.height - 24, 1))
+                    let fit = min(available.width / thumbnail.size.width, available.height / thumbnail.size.height)
+                    let w = thumbnail.size.width * fit
+                    let h = thumbnail.size.height * fit
+                    let radians = CGFloat(configuration.rotation) * .pi / 180
+                    let boundsW = w * abs(cos(radians)) + h * abs(sin(radians))
+                    let boundsH = w * abs(sin(radians)) + h * abs(cos(radians))
+                    let shrink = min(1, available.width / boundsW, available.height / boundsH)
+
+                    Image(uiImage: thumbnail)
+                        .resizable()
+                        .frame(width: w, height: h)
+                        .scaleEffect(x: configuration.isFlipped ? -shrink : shrink, y: shrink)
+                        .rotationEffect(.degrees(configuration.rotation))
+                        .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                }
             } else {
                 ProgressView()
             }
@@ -154,16 +164,35 @@ struct SavedReferenceCard: View {
     }
 
     private var details: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(configuration.dateCreated, format: .dateTime.day().month(.abbreviated).year())
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
-
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                chip("circle.lefthalf.filled", "\(Int(configuration.opacity * 100))%")
-                chip("arrow.up.left.and.arrow.down.right", String(format: "%.1f×", configuration.scale))
+                Text(configuration.dateCreated, format: .dateTime.day().month(.abbreviated).year())
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                Spacer(minLength: 0)
+                // Camera mode the reference was aligned with
                 if let mode = configuration.captureMode {
-                    chip(mode.iconName, nil)
+                    Image(systemName: mode.iconName)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.55))
+                        .accessibilityLabel(mode.shortTitle)
+                }
+            }
+
+            // Chips never wrap; if the rotation chip doesn't fit it is dropped instead
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 5) {
+                    opacityChip
+                    scaleChip
+                    if Int(configuration.rotation) != 0 {
+                        chip("rotate.right", "\(Int(configuration.rotation))°")
+                    }
+                }
+                HStack(spacing: 5) {
+                    opacityChip
+                    scaleChip
                 }
             }
         }
@@ -171,18 +200,26 @@ struct SavedReferenceCard: View {
         .padding(.bottom, 2)
     }
 
-    private func chip(_ icon: String, _ text: String?) -> some View {
+    private var opacityChip: some View {
+        chip("circle.lefthalf.filled", "\(Int(configuration.opacity * 100))%")
+    }
+
+    private var scaleChip: some View {
+        chip("arrow.up.left.and.arrow.down.right", String(format: "%.1f×", configuration.scale))
+    }
+
+    private func chip(_ icon: String, _ text: String) -> some View {
         HStack(spacing: 3) {
             Image(systemName: icon)
                 .font(.system(size: 9, weight: .bold))
-            if let text {
-                Text(text)
-                    .font(.caption2.weight(.semibold).monospacedDigit())
-            }
+            Text(text)
+                .font(.caption2.weight(.semibold).monospacedDigit())
+                .lineLimit(1)
         }
         .foregroundStyle(.white.opacity(0.75))
         .padding(.horizontal, 7)
         .padding(.vertical, 4)
         .background(Capsule().fill(Color.white.opacity(0.1)))
+        .fixedSize()
     }
 }
