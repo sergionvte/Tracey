@@ -227,6 +227,14 @@ struct ContentView: View {
         .onChange(of: viewModel.isPropertiesLocked) { _, locked in
             OrientationLock.freeze(locked)
         }
+        // One-time hint the first time an image ever appears
+        .onChange(of: viewModel.overlayImage != nil) { _, hasImage in
+            let key = "hasShownPlacementHint"
+            guard hasImage, !UserDefaults.standard.bool(forKey: key) else { return }
+            UserDefaults.standard.set(true, forKey: key)
+            showToast(ToastMessage(icon: "hand.draw.fill", text: "Drag, pinch & rotate to place it · then tap Lock",
+                                   tint: Theme.accent, duration: 3.5))
+        }
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(selectedImage: $viewModel.selectedImageFromGallery) // Use the property that clears loadedImageName
         }
@@ -358,22 +366,26 @@ struct SnapIndicators: View {
 
     var body: some View {
         ZStack {
+            // Each amber guide sits on a thin dark line so it stays visible over white paper
+
             // Vertical center line
             if showVerticalIndicator {
-                Rectangle()
-                    .fill(Theme.accent.opacity(0.9))
-                    .frame(width: 2)
-                    .position(x: screenCenter.x, y: screenCenter.y)
-                    .animation(.easeInOut(duration: 0.2), value: showVerticalIndicator)
+                ZStack {
+                    Rectangle().fill(Color.black.opacity(0.35)).frame(width: 4)
+                    Rectangle().fill(Theme.accent.opacity(0.9)).frame(width: 2)
+                }
+                .position(x: screenCenter.x, y: screenCenter.y)
+                .animation(.easeInOut(duration: 0.2), value: showVerticalIndicator)
             }
 
             // Horizontal center line
             if showHorizontalIndicator {
-                Rectangle()
-                    .fill(Theme.accent.opacity(0.9))
-                    .frame(height: 2)
-                    .position(x: screenCenter.x, y: screenCenter.y)
-                    .animation(.easeInOut(duration: 0.2), value: showHorizontalIndicator)
+                ZStack {
+                    Rectangle().fill(Color.black.opacity(0.35)).frame(height: 4)
+                    Rectangle().fill(Theme.accent.opacity(0.9)).frame(height: 2)
+                }
+                .position(x: screenCenter.x, y: screenCenter.y)
+                .animation(.easeInOut(duration: 0.2), value: showHorizontalIndicator)
             }
 
             // Center dot
@@ -381,6 +393,7 @@ struct SnapIndicators: View {
                 Circle()
                     .fill(Theme.accent)
                     .frame(width: 8, height: 8)
+                    .overlay(Circle().stroke(Color.black.opacity(0.35), lineWidth: 1))
                     .position(x: screenCenter.x, y: screenCenter.y)
                     .animation(.easeInOut(duration: 0.2), value: showVerticalIndicator || showHorizontalIndicator)
             }

@@ -151,6 +151,8 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
     var isViewportEnabled: Bool = false {
         didSet {
             guard isViewportEnabled != oldValue else { return }
+            // Locked: keep the paper in focus even when a hand enters the frame
+            setFocusLocked(isViewportEnabled)
             if !isViewportEnabled {
                 // Unlocking returns to the normal view so the image can be edited
                 resetViewport(animated: true)
@@ -455,6 +457,10 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
     private let imageScaleRange: ClosedRange<CGFloat> = 0.1...5.0
     private let centerSnapDistance: CGFloat = 30
     private let angleSnapDegrees: Double = 8
+    /// Tick when the drag enters a center snap zone or the rotation lands on 0/90/180/270
+    private let snapFeedback = UISelectionFeedbackGenerator()
+    /// Whether the image center is within the snap distance of the screen center, per axis
+    private var inSnapZone = (x: false, y: false)
 
     /// True when the gesture's touches (or their center) are on the drawn image. A small margin
     /// makes small images easier to grab.
@@ -485,6 +491,8 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
         guard editState == nil, let state = overlayState else { return }
         editState = (state.offset, state.scale, state.rotation)
         panMovedImage = false
+        inSnapZone = (abs(state.offset.width) <= centerSnapDistance, abs(state.offset.height) <= centerSnapDistance)
+        snapFeedback.prepare()
     }
 
     private func handleImagePan(_ gesture: UIPanGestureRecognizer) {
@@ -499,6 +507,14 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
                 edit.offset.height += translation.y
                 editState = edit
                 panMovedImage = true
+                // Same zones as the amber guides: tick when either guide appears
+                let zone = (x: abs(edit.offset.width) <= centerSnapDistance,
+                            y: abs(edit.offset.height) <= centerSnapDistance)
+                if (zone.x && !inSnapZone.x) || (zone.y && !inSnapZone.y) {
+                    snapFeedback.selectionChanged()
+                    snapFeedback.prepare()
+                }
+                inSnapZone = zone
                 publishImageEdit(isDragging: gesture.state != .ended)
             }
         }
@@ -530,6 +546,10 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
             let raw = rotationAtStart + Double(gesture.rotation) * 180 / .pi
             let snapped = snappedAngle(raw)
             if snapped != edit.rotation {
+                if [0.0, 90, 180, 270].contains(snapped) {
+                    snapFeedback.selectionChanged()
+                    snapFeedback.prepare()
+                }
                 edit.rotation = snapped
                 editState = edit
                 publishImageEdit(isDragging: isActive(panGesture))
@@ -768,7 +788,9 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
 
             if device.isExposurePointOfInterestSupported {
                 device.exposurePointOfInterest = focusPoint
-                device.exposureMode = .autoExpose
+                // Meter at that point but keep exposure automatic (light changes while drawing)
+                device.exposureMode = device.isExposureModeSupported(.continuousAutoExposure)
+                    ? .continuousAutoExposure : .autoExpose
             }
 
             device.unlockForConfiguration()
@@ -797,6 +819,23 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
                 focusView.alpha = 0
             }) { _ in
                 focusView.removeFromSuperview()
+            }
+        }
+    }
+
+    /// Locked focus while the reference is locked; continuous autofocus otherwise.
+    /// Exposure is left automatic.
+    private func setFocusLocked(_ locked: Bool) {
+        sessionQueue.async { [weak self] in
+            guard let device = self?.captureDevice else { return }
+            let mode: AVCaptureDevice.FocusMode = locked ? .locked : .continuousAutoFocus
+            guard device.isFocusModeSupported(mode) else { return }
+            do {
+                try device.lockForConfiguration()
+                device.focusMode = mode
+                device.unlockForConfiguration()
+            } catch {
+                print("Error setting focus mode: \(error)")
             }
         }
     }
