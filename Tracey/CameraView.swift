@@ -67,10 +67,13 @@ struct CameraView: UIViewRepresentable {
     var overlayLayoutRect: CGRect
     /// The camera only runs while this is true (there is a reference image on screen).
     var isCameraActive: Bool
+    /// A single tap anywhere on the camera view (shows / hides the floating controls).
+    var onSingleTap: () -> Void
 
     func makeUIView(context: Context) -> CameraUIView {
         let cameraView = CameraUIView()
         cameraView.isZoomEnabled = isZoomEnabled
+        cameraView.onSingleTap = onSingleTap
         cameraView.onViewportTransformedChange = { [weak viewModel] transformed in
             withAnimation(.easeInOut(duration: 0.2)) {
                 viewModel?.isViewportTransformed = transformed
@@ -105,6 +108,7 @@ struct CameraView: UIViewRepresentable {
 
     func updateUIView(_ uiView: CameraUIView, context: Context) {
         uiView.isZoomEnabled = isZoomEnabled
+        uiView.onSingleTap = onSingleTap
         uiView.isViewportEnabled = isViewportEnabled
         uiView.overlayLayoutRect = overlayLayoutRect
         uiView.setCameraActive(isCameraActive)
@@ -656,9 +660,20 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
         rotation.delegate = self
         addGestureRecognizer(rotation)
 
-        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTapToFocus(_:)))
+        // A tap shows / hides the controls. This view is under every control, so its tap
+        // recognizer is the single source of truth (a SwiftUI tap on top never received them).
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleSingleTap(_:)))
         tapGesture.numberOfTapsRequired = 1
         addGestureRecognizer(tapGesture)
+
+        // Touch and hold focuses (and meters exposure) at that point
+        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPressToFocus(_:)))
+        longPress.minimumPressDuration = 0.5
+        longPress.delegate = self
+        addGestureRecognizer(longPress)
+        // A long press must not also count as a tap when the finger lifts. A quick tap isn't
+        // delayed: the long press fails as soon as the finger lifts before 0.5 s.
+        tapGesture.require(toFail: longPress)
     }
 
     @objc private func handlePinch(_ gesture: UIPinchGestureRecognizer) {
@@ -688,8 +703,17 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
         }
     }
 
-    @objc private func handleTapToFocus(_ gesture: UITapGestureRecognizer) {
+    var onSingleTap: (() -> Void)?
+
+    @objc private func handleSingleTap(_ gesture: UITapGestureRecognizer) {
+        guard gesture.state == .ended else { return }
+        onSingleTap?()
+    }
+
+    @objc private func handleLongPressToFocus(_ gesture: UILongPressGestureRecognizer) {
+        guard gesture.state == .began, captureDevice != nil else { return }
         focus(at: gesture.location(in: self))
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 
     func focusAtCenter() {

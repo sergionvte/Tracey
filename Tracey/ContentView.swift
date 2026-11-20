@@ -56,7 +56,8 @@ struct ContentView: View {
                         height: geometry.size.height
                     ),
                     // Camera stays off until there is a reference image to trace
-                    isCameraActive: viewModel.overlayImage != nil
+                    isCameraActive: viewModel.overlayImage != nil,
+                    onSingleTap: toggleControls
                 )
                 .ignoresSafeArea()
 
@@ -185,9 +186,6 @@ struct ContentView: View {
         .onDisappear {
             // Restore normal behavior when the app is closed
             UIApplication.shared.isIdleTimerDisabled = false
-        }
-        .onTapGesture {
-            toggleControls()
         }
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(selectedImage: $viewModel.selectedImageFromGallery) // Use the property that clears loadedImageName
