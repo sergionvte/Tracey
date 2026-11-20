@@ -102,7 +102,8 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
     // Viewport (the "move the whole screen" transform)
     private var viewportScale: CGFloat = 1.0
     private var viewportOffset: CGPoint = .zero
-    private let viewportScaleRange: ClosedRange<CGFloat> = 1.0...6.0
+    // 0.25x (zoomed out, everything smaller) up to 10x (zoomed in); 1x is the normal view
+    private let viewportScaleRange: ClosedRange<CGFloat> = 0.25...10.0
     private var lastReportedTransformed = false
     var onViewportTransformedChange: ((Bool) -> Void)?
     private var panGesture: UIPanGestureRecognizer?
@@ -246,9 +247,10 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
 
     private func clampViewport() {
         viewportScale = min(max(viewportScale, viewportScaleRange.lowerBound), viewportScaleRange.upperBound)
-        // Never let the canvas leave the screen completely
-        let maxX = bounds.width * viewportScale / 2
-        let maxY = bounds.height * viewportScale / 2
+        // Never let the canvas leave the screen completely. When zoomed out (scale < 1) the
+        // smaller canvas can still be moved until its center reaches any screen edge.
+        let maxX = bounds.width * max(viewportScale, 1) / 2
+        let maxY = bounds.height * max(viewportScale, 1) / 2
         viewportOffset.x = min(max(viewportOffset.x, -maxX), maxX)
         viewportOffset.y = min(max(viewportOffset.y, -maxY), maxY)
     }

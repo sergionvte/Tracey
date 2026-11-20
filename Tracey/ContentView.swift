@@ -19,9 +19,17 @@ struct ContentView: View {
 
     var body: some View {
         GeometryReader { geometry in
+            // The camera preview fills the WHOLE screen (it ignores the safe area), so its center
+            // is the screen center — not the safe-area center, which sits lower because the top
+            // inset (Dynamic Island) is taller than the bottom one. Center the overlay on the
+            // camera so "centered" means centered on what the camera shows.
+            let cameraCenterShift = CGSize(
+                width: (geometry.safeAreaInsets.trailing - geometry.safeAreaInsets.leading) / 2,
+                height: (geometry.safeAreaInsets.bottom - geometry.safeAreaInsets.top) / 2
+            )
             let screenCenter = CGPoint(
-                x: geometry.size.width / 2,
-                y: geometry.size.height / 2
+                x: geometry.size.width / 2 + cameraCenterShift.width,
+                y: geometry.size.height / 2 + cameraCenterShift.height
             )
 
             ZStack {
@@ -45,8 +53,8 @@ struct ContentView: View {
                         isFlipped: viewModel.isFlipped
                     ),
                     overlayLayoutRect: CGRect(
-                        x: geometry.safeAreaInsets.leading,
-                        y: geometry.safeAreaInsets.top,
+                        x: geometry.safeAreaInsets.leading + cameraCenterShift.width,
+                        y: geometry.safeAreaInsets.top + cameraCenterShift.height,
                         width: geometry.size.width,
                         height: geometry.size.height
                     )
@@ -64,8 +72,8 @@ struct ContentView: View {
                         .scaleEffect(viewModel.imageScale * currentGestureScale) // Apply incremental scale
                         .rotationEffect(.degrees(viewModel.imageRotation))
                         .offset(CGSize(
-                            width: viewModel.imageOffset.width + dragOffset.width,
-                            height: viewModel.imageOffset.height + dragOffset.height
+                            width: viewModel.imageOffset.width + dragOffset.width + cameraCenterShift.width,
+                            height: viewModel.imageOffset.height + dragOffset.height + cameraCenterShift.height
                         ))
                         .gesture(
                             viewModel.isPropertiesLocked ? nil :
