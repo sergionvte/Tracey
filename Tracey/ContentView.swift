@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 
 struct ContentView: View {
-    @ObservedObject private var viewModel = CameraViewModel()
+    @StateObject private var viewModel = CameraViewModel()
     @State private var showingImagePicker = false
     @State private var showingControls = true
     @State private var showingImageControls = false // New state for image controls
@@ -13,6 +13,8 @@ struct ContentView: View {
     @State private var gestureInProgress = false
     @State private var currentGestureScale: CGFloat = 1.0 // For incremental zoom
     @State private var cameraUIView: CameraUIView? = nil // Reference to camera view
+    @State private var liveViewport: Viewport? = nil // Viewport while a move/zoom gesture is in progress
+    @State private var lastPinch: (magnification: CGFloat, startLocation: CGPoint)? = nil // Kept if a finger lifts mid-gesture
 
     // Snap to center configuration
     private let snapThreshold: CGFloat = 30 // Distance in points to activate snap
@@ -24,7 +26,12 @@ struct ContentView: View {
                 y: geometry.size.height / 2
             )
 
+            let viewport = liveViewport ?? Viewport(scale: viewModel.viewportScale, offset: viewModel.viewportOffset)
+
             ZStack {
+                // Canvas: camera + overlay image rendered as ONE unit. While locked, the whole
+                // canvas is moved/zoomed together so the image stays fixed on the camera feed.
+                ZStack {
                 // Camera view
                 CameraView(viewModel: viewModel, cameraUIView: $cameraUIView, isZoomEnabled: !viewModel.isPropertiesLocked)
                     .ignoresSafeArea()
@@ -133,6 +140,23 @@ struct ContentView: View {
                                 }
                         )
                 }
+                }
+                .frame(width: geometry.size.width, height: geometry.size.height)
+                .scaleEffect(viewport.scale)
+                .offset(viewport.offset)
+
+                // Viewport gesture layer: only while locked. Drag moves the whole screen,
+                // pinch zooms it, tap focuses the camera (and toggles controls as usual).
+                if viewModel.isPropertiesLocked {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .ignoresSafeArea()
+                        .gesture(viewportGesture(in: geometry))
+                        .onTapGesture(coordinateSpace: .named(Self.rootSpace)) { location in
+                            focusCamera(atRootPoint: location, viewport: viewport, geometry: geometry)
+                            toggleControls()
+                        }
+                }
 
                 // Visual snap indicators (only if not locked)
                 if viewModel.overlayImage != nil && !viewModel.isPropertiesLocked && (abs(dragOffset.width) > 0 || abs(dragOffset.height) > 0) {
@@ -149,6 +173,23 @@ struct ContentView: View {
                     HStack {
                         Spacer()
                         VStack(spacing: 10) {
+                            // Capture mode button: video (smoother) / photo (wider frame).
+                            // Disabled while locked because switching changes the camera framing.
+                            Button(action: {
+                                guard !viewModel.isPropertiesLocked else { return }
+                                viewModel.toggleCaptureMode()
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            }) {
+                                Image(systemName: viewModel.captureMode.iconName)
+                                    .font(.title3)
+                                    .foregroundColor(.white)
+                                    .frame(width: 44, height: 44)
+                                    .background(viewModel.isPropertiesLocked ? Color.gray.opacity(0.5) : (viewModel.captureMode == .photo ? Color.orange.opacity(0.85) : Color.black.opacity(0.6)))
+                                    .clipShape(Circle())
+                                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                            }
+                            .accessibilityLabel(viewModel.captureMode == .video ? "Switch to photo mode" : "Switch to video mode")
+
                             // Focus button
                             Button(action: {
                                 // Focus at the center of the screen
@@ -211,6 +252,23 @@ struct ContentView: View {
                                     .clipShape(Circle())
                                     .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
                             }
+
+                            // Reset view button: only when the locked screen has been moved/zoomed
+                            if viewModel.isPropertiesLocked && viewModel.isViewportTransformed {
+                                Button(action: {
+                                    viewModel.resetViewport()
+                                }) {
+                                    Image(systemName: "arrow.down.right.and.arrow.up.left")
+                                        .font(.title3)
+                                        .foregroundColor(.white)
+                                        .frame(width: 44, height: 44)
+                                        .background(Color.blue.opacity(0.8))
+                                        .clipShape(Circle())
+                                        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                                }
+                                .accessibilityLabel("Reset view")
+                                .transition(.scale.combined(with: .opacity))
+                            }
                         }
                         .padding(.trailing, 20)
                         .padding(.top, 10)
@@ -249,7 +307,9 @@ struct ContentView: View {
                 VStack {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("📹 Pinch to zoom • Tap to focus")
+                            Text(viewModel.isPropertiesLocked
+                                 ? "✋ Drag to move • Pinch to zoom view"
+                                 : "📹 Pinch to zoom • Tap to focus")
                                 .font(.caption)
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 12)
@@ -257,6 +317,20 @@ struct ContentView: View {
                                 .background(Color.black.opacity(0.6))
                                 .cornerRadius(20)
                                 .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+
+                            // Capture mode indicator
+                            HStack(spacing: 4) {
+                                Image(systemName: viewModel.captureMode.iconName)
+                                    .font(.caption2)
+                                Text(viewModel.captureMode.title)
+                                    .font(.caption2)
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 4)
+                            .background(Color.black.opacity(0.6))
+                            .cornerRadius(15)
+                            .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
 
                             // Lock state indicator
                             if viewModel.overlayImage != nil {
@@ -284,6 +358,8 @@ struct ContentView: View {
                 .opacity(showingControls ? 1 : 0)
                 .animation(.easeInOut(duration: 0.3), value: showingControls)
             }
+            .coordinateSpace(.named(Self.rootSpace))
+            .animation(.easeInOut(duration: 0.2), value: viewModel.isViewportTransformed)
         }
         .onAppear {
             // Keep the screen active
@@ -294,12 +370,7 @@ struct ContentView: View {
             UIApplication.shared.isIdleTimerDisabled = false
         }
         .onTapGesture {
-            withAnimation(.easeInOut(duration: 0.3)) {
-                showingControls.toggle()
-                if !showingControls {
-                    showingImageControls = false
-                }
-            }
+            toggleControls()
         }
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(selectedImage: $viewModel.selectedImageFromGallery) // Use the property that clears loadedImageName
@@ -309,6 +380,95 @@ struct ContentView: View {
         }) {
             SavedImagesView(viewModel: viewModel, isPresented: $viewModel.showingSavedImages)
         }
+    }
+
+    private func toggleControls() {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            showingControls.toggle()
+            if !showingControls {
+                showingImageControls = false
+            }
+        }
+    }
+
+    // MARK: - Viewport (move/zoom the whole screen while locked)
+
+    private static let rootSpace = "root"
+
+    /// Pinch zooms around the fingers, drag pans. Both apply to camera + image together.
+    private func viewportGesture(in geometry: GeometryProxy) -> some Gesture {
+        MagnifyGesture()
+            .simultaneously(with: DragGesture())
+            .onChanged { value in
+                if let magnify = value.first {
+                    lastPinch = (magnify.magnification, magnify.startLocation)
+                }
+                liveViewport = viewport(pinch: lastPinch, translation: value.second?.translation, in: geometry)
+            }
+            .onEnded { value in
+                if let magnify = value.first {
+                    lastPinch = (magnify.magnification, magnify.startLocation)
+                }
+                let final = viewport(pinch: lastPinch, translation: value.second?.translation, in: geometry)
+                viewModel.viewportScale = final.scale
+                viewModel.viewportOffset = final.offset
+                liveViewport = nil
+                lastPinch = nil
+            }
+    }
+
+    private func viewport(pinch: (magnification: CGFloat, startLocation: CGPoint)?, translation: CGSize?, in geometry: GeometryProxy) -> Viewport {
+        let startScale = viewModel.viewportScale
+        let startOffset = viewModel.viewportOffset
+        let range = CameraViewModel.viewportScaleRange
+        let center = CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2)
+
+        var scale = startScale
+        var offset = startOffset
+
+        if let pinch {
+            scale = min(max(startScale * pinch.magnification, range.lowerBound), range.upperBound)
+            // Keep the point under the fingers fixed while zooming.
+            // The gesture layer ignores the safe area, so shift its location into root space.
+            let anchor = CGPoint(
+                x: pinch.startLocation.x - geometry.safeAreaInsets.leading,
+                y: pinch.startLocation.y - geometry.safeAreaInsets.top
+            )
+            let ratio = scale / startScale
+            offset.width += (anchor.x - center.x - startOffset.width) * (1 - ratio)
+            offset.height += (anchor.y - center.y - startOffset.height) * (1 - ratio)
+        }
+
+        if let translation {
+            offset.width += translation.width
+            offset.height += translation.height
+        }
+
+        // Never let the canvas leave the screen completely
+        let maxX = geometry.size.width * scale / 2
+        let maxY = geometry.size.height * scale / 2
+        offset.width = min(max(offset.width, -maxX), maxX)
+        offset.height = min(max(offset.height, -maxY), maxY)
+
+        guard scale.isFinite, offset.width.isFinite, offset.height.isFinite else {
+            return Viewport(scale: startScale, offset: startOffset)
+        }
+        return Viewport(scale: scale, offset: offset)
+    }
+
+    /// Converts a tap on the (transformed) screen back to the camera view's own coordinates.
+    private func focusCamera(atRootPoint point: CGPoint, viewport: Viewport, geometry: GeometryProxy) {
+        let center = CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2)
+        let canvasPoint = CGPoint(
+            x: center.x + (point.x - center.x - viewport.offset.width) / viewport.scale,
+            y: center.y + (point.y - center.y - viewport.offset.height) / viewport.scale
+        )
+        // The camera view ignores the safe area, so its origin is the screen's top-left
+        let cameraPoint = CGPoint(
+            x: canvasPoint.x + geometry.safeAreaInsets.leading,
+            y: canvasPoint.y + geometry.safeAreaInsets.top
+        )
+        cameraUIView?.focus(at: cameraPoint)
     }
 
     // Function to snap to cardinal angles
@@ -347,6 +507,12 @@ struct ContentView: View {
 
         return finalOffset
     }
+}
+
+/// Transform applied to the camera + overlay canvas as a single unit.
+struct Viewport: Equatable {
+    var scale: CGFloat
+    var offset: CGSize
 }
 
 // Snap indicators view

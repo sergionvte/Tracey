@@ -13,6 +13,9 @@ import Foundation
 import UIKit
 
 class CameraViewModel: ObservableObject {
+    // Weak reference to the camera view to drive zoom / capture mode
+    weak var cameraUIViewRef: CameraUIView?
+
     @Published var overlayImage: UIImage? = nil
     @Published var imageOpacity: Double = 0.6 {
         didSet {
@@ -75,7 +78,9 @@ class CameraViewModel: ObservableObject {
         }
         imageStorage.loadedImageName = nil // Limpiar referencia al nombre de imagen cargada
         isFlipped = false // Reiniciar flip horizontal al borrar
+        isPropertiesLocked = false
         resetImageTransforms()
+        resetViewport()
         // Reiniciar zoom de cámara al borrar imagen
         cameraUIViewRef?.setZoomFactor(1.0)
     }
@@ -95,6 +100,12 @@ class CameraViewModel: ObservableObject {
             let offsetHeight = configuration.offsetY.isFinite ? configuration.offsetY : 0.0
             imageOffset = CGSize(width: offsetWidth, height: offsetHeight)
             isPropertiesLocked = false // Reiniciar estado de bloqueo al cargar desde imágenes guardadas
+            resetViewport()
+
+            // Restore the capture mode the overlay was aligned with (older saves have none)
+            if let savedMode = configuration.captureMode {
+                captureMode = savedMode
+            }
 
             // Nuevo: cargar el zoom de la cámara si está disponible
             if let cameraUIView = cameraUIViewRef {
@@ -102,9 +113,6 @@ class CameraViewModel: ObservableObject {
             }
         }
     }
-
-    // Referencia débil a la vista de cámara para poder setear el zoom
-    weak var cameraUIViewRef: CameraUIView?
 
     func centerImage() {
         // Animación suave para centrar la imagen
@@ -140,7 +148,53 @@ class CameraViewModel: ObservableObject {
         isFlipped.toggle()
     }
 
-    @Published var isPropertiesLocked: Bool = false // Agregar esta propiedad para gestionar el estado de bloqueo globalmente
+    @Published var isPropertiesLocked: Bool = false {
+        didSet {
+            // When unlocking, return the canvas to its normal position so the image can be edited
+            if !isPropertiesLocked && oldValue {
+                resetViewport()
+            }
+        }
+    }
+
+    // MARK: - Viewport (move/zoom the whole screen: camera + overlay together)
+
+    /// Scale applied to the camera + overlay canvas as a single unit (only while locked).
+    @Published var viewportScale: CGFloat = 1.0
+    /// Offset applied to the camera + overlay canvas as a single unit (only while locked).
+    @Published var viewportOffset: CGSize = .zero
+
+    static let viewportScaleRange: ClosedRange<CGFloat> = 1.0...6.0
+
+    var isViewportTransformed: Bool {
+        viewportScale != 1.0 || viewportOffset != .zero
+    }
+
+    func resetViewport() {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+            viewportScale = 1.0
+            viewportOffset = .zero
+        }
+    }
+
+    // MARK: - Capture mode (video = smoother, photo = full frame)
+
+    private static let captureModeKey = "cameraCaptureMode"
+
+    @Published var captureMode: CameraCaptureMode = {
+        let raw = UserDefaults.standard.string(forKey: "cameraCaptureMode") ?? ""
+        return CameraCaptureMode(rawValue: raw) ?? .video
+    }() {
+        didSet {
+            guard captureMode != oldValue else { return }
+            UserDefaults.standard.set(captureMode.rawValue, forKey: Self.captureModeKey)
+            cameraUIViewRef?.setCaptureMode(captureMode)
+        }
+    }
+
+    func toggleCaptureMode() {
+        captureMode = captureMode.toggled
+    }
 
     // Usar variable @Published para la imagen seleccionada desde la galería
     @Published var selectedImageFromGallery: UIImage? {
@@ -150,6 +204,7 @@ class CameraViewModel: ObservableObject {
                 imageStorage.loadedImageName = nil
                 isFlipped = false
                 isPropertiesLocked = false
+                resetViewport()
                 // Reiniciar zoom al cargar desde galería
                 cameraUIViewRef?.setZoomFactor(1.0)
             }
@@ -178,6 +233,7 @@ class CameraViewModel: ObservableObject {
             offsetY: safeOffsetY,
             isFlipped: safeIsFlipped,
             cameraZoom: cameraZoom,
+            captureMode: captureMode,
             overwriteImageName: prevLoadedName
         )
 

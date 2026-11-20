@@ -24,7 +24,7 @@ class ImageStorageManager: ObservableObject {
     }
 
     // MARK: - Overwrite if a configuration with the same image already exists
-    func saveImageConfiguration(image: UIImage, opacity: Double, scale: Double, rotation: Double, offsetX: Double = 0, offsetY: Double = 0, isFlipped: Bool = false, cameraZoom: CGFloat = 1.0, overwriteImageName: String? = nil) -> Bool {
+    func saveImageConfiguration(image: UIImage, opacity: Double, scale: Double, rotation: Double, offsetX: Double = 0, offsetY: Double = 0, isFlipped: Bool = false, cameraZoom: CGFloat = 1.0, captureMode: CameraCaptureMode? = nil, overwriteImageName: String? = nil) -> Bool {
         let imageName: String
         if let overwriteName = overwriteImageName {
             imageName = overwriteName
@@ -50,7 +50,8 @@ class ImageStorageManager: ObservableObject {
                     offsetY: offsetY,
                     isFlipped: isFlipped,
                     dateCreated: oldConfig.dateCreated,
-                    cameraZoom: cameraZoom
+                    cameraZoom: cameraZoom,
+                    captureMode: captureMode
                 )
                 savedConfigurations[idx] = newConfig
                 saveConfigurations()
@@ -65,7 +66,8 @@ class ImageStorageManager: ObservableObject {
                 offsetX: offsetX,
                 offsetY: offsetY,
                 isFlipped: isFlipped,
-                cameraZoom: cameraZoom
+                cameraZoom: cameraZoom,
+                captureMode: captureMode
             )
             savedConfigurations.append(configuration)
             saveConfigurations()
