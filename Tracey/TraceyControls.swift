@@ -86,16 +86,19 @@ struct ToolColumn: View {
     var body: some View {
         GlassGroup(spacing: 10) {
             VStack(spacing: 10) {
-                GlassIconButton(systemName: "viewfinder", label: "Focus center", action: onFocus)
-
-                GlassIconButton(
-                    systemName: isTorchOn ? "flashlight.on.fill" : "flashlight.off.fill",
-                    label: isTorchOn ? "Turn light off" : "Turn light on",
-                    isActive: isTorchOn,
-                    action: onTorch
-                )
-
+                // The camera only runs once there is an image, so camera tools appear with it
                 if hasImage {
+                    GlassIconButton(systemName: "viewfinder", label: "Focus center", action: onFocus)
+                        .transition(.scale.combined(with: .opacity))
+
+                    GlassIconButton(
+                        systemName: isTorchOn ? "flashlight.on.fill" : "flashlight.off.fill",
+                        label: isTorchOn ? "Turn light off" : "Turn light on",
+                        isActive: isTorchOn,
+                        action: onTorch
+                    )
+                    .transition(.scale.combined(with: .opacity))
+
                     GlassIconButton(
                         systemName: "arrow.left.and.right.righttriangle.left.righttriangle.right",
                         label: "Mirror image",
@@ -302,6 +305,25 @@ private struct AdjustRow<Control: View>: View {
 }
 
 // MARK: - Empty state
+
+/// Calm graphite backdrop with a soft amber glow, shown while the camera is off.
+struct IdleBackground: View {
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(white: 0.11), Color(white: 0.04)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            RadialGradient(
+                colors: [Theme.accent.opacity(0.22), .clear],
+                center: .center,
+                startRadius: 10,
+                endRadius: 420
+            )
+        }
+    }
+}
 
 struct EmptyStateCard: View {
     let onImport: () -> Void

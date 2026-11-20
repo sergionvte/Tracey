@@ -34,6 +34,10 @@ struct ContentView: View {
             )
 
             ZStack {
+                // Shown while the camera is off (no reference image yet)
+                IdleBackground()
+                    .ignoresSafeArea()
+
                 // Camera view. The overlay image is DRAWN inside the camera view (same UIKit
                 // container as the camera preview), so while locked, moving/zooming the screen
                 // moves both as one piece and they can never drift apart.
@@ -58,7 +62,9 @@ struct ContentView: View {
                         y: geometry.safeAreaInsets.top + cameraCenterShift.height,
                         width: geometry.size.width,
                         height: geometry.size.height
-                    )
+                    ),
+                    // Camera stays off until there is a reference image to trace
+                    isCameraActive: viewModel.overlayImage != nil
                 )
                 .ignoresSafeArea()
 

@@ -55,6 +55,8 @@ struct CameraView: UIViewRepresentable {
     var overlay: OverlayRenderState
     /// Rect (in this view's coordinates) the overlay image is fitted and centered in.
     var overlayLayoutRect: CGRect
+    /// The camera only runs while this is true (there is a reference image on screen).
+    var isCameraActive: Bool
 
     func makeUIView(context: Context) -> CameraUIView {
         let cameraView = CameraUIView()
@@ -77,6 +79,7 @@ struct CameraView: UIViewRepresentable {
         uiView.isZoomEnabled = isZoomEnabled
         uiView.isViewportEnabled = isViewportEnabled
         uiView.overlayLayoutRect = overlayLayoutRect
+        uiView.setCameraActive(isCameraActive)
         let animated = context.transaction.animation != nil && !context.transaction.disablesAnimations
         uiView.setOverlay(overlay, animated: animated)
     }
@@ -130,7 +133,7 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
     }
 
     private func commonInit() {
-        backgroundColor = .black
+        backgroundColor = .clear // camera starts off; becomes black when it turns on
         clipsToBounds = true
         contentView.isUserInteractionEnabled = false // all gestures are handled by self
         addSubview(contentView)
@@ -146,38 +149,90 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
 
     private(set) var captureMode: CameraCaptureMode = .video
 
+    /// Prepares the preview layer and gestures only. The camera itself is not touched
+    /// (no permission prompt, no session) until `setCameraActive(true)`.
     func setupCamera(mode: CameraCaptureMode) {
         captureMode = mode
 
         previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
         previewLayer.videoGravity = Self.videoGravity(for: mode)
+        previewLayer.isHidden = true // until the camera is turned on
         contentView.layer.insertSublayer(previewLayer, at: 0) // below the overlay image
 
         setupGestures()
+    }
+
+    // MARK: - Camera on/off
+
+    private var isCameraActive = false
+    /// Session-queue state: whether the input and format have been configured yet.
+    private var isSessionConfigured = false
+    /// Zoom requested before the camera was configured (e.g. loading a saved reference).
+    private var pendingZoom: CGFloat?
+
+    /// Starts the camera when a reference image is on screen and stops it otherwise.
+    func setCameraActive(_ active: Bool) {
+        guard active != isCameraActive else { return }
+        isCameraActive = active
+        let mode = captureMode
+
+        // When off, hide the preview (it would freeze on the last frame) and let the
+        // idle background behind this view show through.
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        previewLayer?.isHidden = !active
+        backgroundColor = active ? .black : .clear
+        CATransaction.commit()
 
         sessionQueue.async { [weak self] in
             guard let self else { return }
-            guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
-                print("No camera available")
-                return
-            }
-            self.captureDevice = device
-
-            self.captureSession.beginConfiguration()
-            do {
-                let input = try AVCaptureDeviceInput(device: device)
-                if self.captureSession.canAddInput(input) {
-                    self.captureSession.addInput(input)
+            if active {
+                if !self.isSessionConfigured {
+                    self.configureSession(mode: mode)
                 }
-            } catch {
-                print("Error setting up camera input: \(error)")
-                self.captureSession.commitConfiguration()
-                return
+                if self.isSessionConfigured && !self.captureSession.isRunning {
+                    self.captureSession.startRunning()
+                }
+            } else if self.captureSession.isRunning {
+                self.captureSession.stopRunning()
             }
-            self.applyFormat(for: mode, on: device)
-            self.captureSession.commitConfiguration()
+        }
+    }
 
-            self.captureSession.startRunning()
+    /// Must be called on `sessionQueue`. First call adds the camera input (this is when iOS
+    /// asks for camera permission).
+    private func configureSession(mode: CameraCaptureMode) {
+        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+            print("No camera available")
+            return
+        }
+
+        captureSession.beginConfiguration()
+        do {
+            let input = try AVCaptureDeviceInput(device: device)
+            if captureSession.canAddInput(input) {
+                captureSession.addInput(input)
+            }
+        } catch {
+            print("Error setting up camera input: \(error)")
+            captureSession.commitConfiguration()
+            return
+        }
+        applyFormat(for: mode, on: device)
+        captureSession.commitConfiguration()
+
+        captureDevice = device
+        isSessionConfigured = true
+
+        if let zoom = pendingZoom {
+            pendingZoom = nil
+            do {
+                try device.lockForConfiguration()
+                device.videoZoomFactor = Self.clampedZoom(zoom, for: device)
+                device.unlockForConfiguration()
+            } catch {
+                print("Error applying pending zoom: \(error)")
+            }
         }
     }
 
@@ -318,7 +373,15 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
         captureMode = mode
 
         sessionQueue.async { [weak self] in
-            guard let self, let device = self.captureDevice else { return }
+            guard let self else { return }
+            guard let device = self.captureDevice else {
+                // Camera not started yet: the new format is used when it starts; just
+                // update how the (empty) preview will be framed.
+                DispatchQueue.main.async {
+                    self.previewLayer.videoGravity = Self.videoGravity(for: mode)
+                }
+                return
+            }
             let previousZoom = device.videoZoomFactor
             let torchWasOn = device.torchMode == .on
 
@@ -498,7 +561,12 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
     func setZoomFactor(_ zoom: CGFloat) {
         // Serialized with capture-mode changes so a restored zoom isn't overwritten
         sessionQueue.async { [weak self] in
-            guard let device = self?.captureDevice else { return }
+            guard let self else { return }
+            guard let device = self.captureDevice else {
+                // Camera not started yet: apply when it is
+                self.pendingZoom = zoom
+                return
+            }
             do {
                 try device.lockForConfiguration()
                 device.videoZoomFactor = Self.clampedZoom(zoom, for: device)

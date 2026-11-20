@@ -78,6 +78,7 @@ class CameraViewModel: ObservableObject {
         }
         imageStorage.loadedImageName = nil // Limpiar referencia al nombre de imagen cargada
         isFlipped = false // Reiniciar flip horizontal al borrar
+        if isTorchOn { toggleTorch() } // the camera turns off with no image, so does the light
         isPropertiesLocked = false
         resetImageTransforms()
         resetViewport()
