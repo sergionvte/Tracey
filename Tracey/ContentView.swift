@@ -187,6 +187,11 @@ struct ContentView: View {
             // Restore normal behavior when the app is closed
             UIApplication.shared.isIdleTimerDisabled = false
         }
+        // While locked, turning the device must not re-lay out the screen (iPad; iPhone is
+        // portrait-only) or the reference would no longer match the paper.
+        .onChange(of: viewModel.isPropertiesLocked) { _, locked in
+            OrientationLock.freeze(locked)
+        }
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(selectedImage: $viewModel.selectedImageFromGallery) // Use the property that clears loadedImageName
         }
