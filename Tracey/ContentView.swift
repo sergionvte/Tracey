@@ -7,11 +7,6 @@ struct ContentView: View {
     @State private var showingImagePicker = false
     @State private var showingControls = true
     @State private var showingImageControls = false // New state for image controls
-    @State private var dragOffset: CGSize = .zero
-    @State private var gestureStartScale: CGFloat = 1.0
-    @State private var gestureStartRotation: Double = 0.0
-    @State private var gestureInProgress = false
-    @State private var currentGestureScale: CGFloat = 1.0 // For incremental zoom
     @State private var cameraUIView: CameraUIView? = nil // Reference to camera view
     @State private var toast: ToastMessage? = nil
 
@@ -49,12 +44,9 @@ struct ContentView: View {
                     overlay: OverlayRenderState(
                         image: viewModel.overlayImage,
                         opacity: viewModel.imageOpacity,
-                        scale: viewModel.imageScale * currentGestureScale,
+                        scale: viewModel.imageScale,
                         rotation: viewModel.imageRotation,
-                        offset: CGSize(
-                            width: viewModel.imageOffset.width + dragOffset.width,
-                            height: viewModel.imageOffset.height + dragOffset.height
-                        ),
+                        offset: viewModel.imageOffset,
                         isFlipped: viewModel.isFlipped
                     ),
                     overlayLayoutRect: CGRect(
@@ -68,116 +60,13 @@ struct ContentView: View {
                 )
                 .ignoresSafeArea()
 
-                // Invisible touch target with the same layout as the drawn image, used to
-                // edit it while unlocked. While locked it is removed so touches reach the camera
-                // view (drag/pinch move the whole screen, tap focuses).
-                if let overlayImage = viewModel.overlayImage, !viewModel.isPropertiesLocked {
-                    Color.clear
-                        .aspectRatio(overlayImage.size, contentMode: .fit)
-                        .contentShape(Rectangle())
-                        .scaleEffect(x: viewModel.isFlipped ? -1 : 1, y: 1) // Flip horizontally if enabled
-                        .scaleEffect(viewModel.imageScale * currentGestureScale) // Apply incremental scale
-                        .rotationEffect(.degrees(viewModel.imageRotation))
-                        .offset(CGSize(
-                            width: viewModel.imageOffset.width + dragOffset.width + cameraCenterShift.width,
-                            height: viewModel.imageOffset.height + dragOffset.height + cameraCenterShift.height
-                        ))
-                        .gesture(
-                            viewModel.isPropertiesLocked ? nil :
-                            // Incremental scale gesture
-                            MagnificationGesture()
-                                .onChanged { value in
-                                    currentGestureScale = value
-                                }
-                                .onEnded { value in
-                                    // Apply final change to base scale
-                                    let finalScale = viewModel.imageScale * value
-
-                                    // Validate that the value is finite and within the allowed range
-                                    if finalScale.isFinite && finalScale > 0 {
-                                        viewModel.imageScale = max(0.1, min(finalScale, 5.0))
-                                    }
-
-                                    // Reset gesture scale
-                                    currentGestureScale = 1.0
-                                }
-                                .simultaneously(with:
-                                    // Rotation gesture
-                                    RotationGesture()
-                                        .onChanged { value in
-                                            if !gestureInProgress {
-                                                gestureStartRotation = viewModel.imageRotation
-                                                gestureInProgress = true
-                                            }
-
-                                            let rawRotation = gestureStartRotation + value.degrees
-                                            let snappedRotation = snapToCardinalAngles(rawRotation)
-
-                                            // Validate that the value is finite before assigning
-                                            if snappedRotation.isFinite {
-                                                viewModel.imageRotation = snappedRotation
-                                            }
-                                        }
-                                        .onEnded { value in
-                                            // Update base value with final result at gesture end
-                                            let rawRotation = gestureStartRotation + value.degrees
-                                            let finalRotation = snapToCardinalAngles(rawRotation)
-
-                                            if finalRotation.isFinite {
-                                                // Smooth animation to final angle
-                                                withAnimation(.easeOut(duration: 0.2)) {
-                                                    viewModel.imageRotation = finalRotation
-                                                }
-                                            }
-                                            gestureInProgress = false
-                                        }
-                                )
-                        )
-                        .simultaneousGesture(
-                            // Only allow movement if not locked
-                            viewModel.isPropertiesLocked ? nil :
-                            // Separate movement gesture with snap to center
-                            DragGesture()
-                                .onChanged { value in
-                                    dragOffset = value.translation
-                                }
-                                .onEnded { value in
-                                    // Calculate proposed final position
-                                    let proposedOffsetX = viewModel.imageOffset.width + value.translation.width
-                                    let proposedOffsetY = viewModel.imageOffset.height + value.translation.height
-
-                                    // Apply snap to center
-                                    let snappedOffset = snapToCenter(
-                                        offset: CGSize(width: proposedOffsetX, height: proposedOffsetY),
-                                        screenCenter: screenCenter
-                                    )
-
-                                    // Validate that the values are finite
-                                    if snappedOffset.width.isFinite && snappedOffset.height.isFinite {
-                                        // First update without animation to current position (including dragOffset)
-                                        viewModel.imageOffset = CGSize(
-                                            width: proposedOffsetX,
-                                            height: proposedOffsetY
-                                        )
-                                        dragOffset = .zero
-
-                                        // Then animate to final position with snap (if applies)
-                                        if snappedOffset != CGSize(width: proposedOffsetX, height: proposedOffsetY) {
-                                            withAnimation(.easeOut(duration: 0.2)) {
-                                                viewModel.imageOffset = snappedOffset
-                                            }
-                                        }
-                                    } else {
-                                        dragOffset = .zero
-                                    }
-                                }
-                        )
-                }
+                // The image is moved / pinched / rotated by native gestures inside CameraView
+                // (same view that draws it), so there is no SwiftUI touch layer on top.
 
                 // Visual snap indicators (only if not locked)
-                if viewModel.overlayImage != nil && !viewModel.isPropertiesLocked && (abs(dragOffset.width) > 0 || abs(dragOffset.height) > 0) {
+                if viewModel.overlayImage != nil && !viewModel.isPropertiesLocked && viewModel.isDraggingImage {
                     SnapIndicators(
-                        dragOffset: dragOffset,
+                        dragOffset: .zero,
                         imageOffset: viewModel.imageOffset,
                         screenCenter: screenCenter,
                         snapThreshold: snapThreshold
@@ -366,43 +255,6 @@ struct ContentView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             if toast?.id == message.id { toast = nil }
         }
-    }
-
-    // Function to snap to cardinal angles
-    private func snapToCardinalAngles(_ angle: Double) -> Double {
-        let normalizedAngle = angle.truncatingRemainder(dividingBy: 360)
-        let positiveAngle = normalizedAngle < 0 ? normalizedAngle + 360 : normalizedAngle
-
-        let cardinalAngles: [Double] = [0, 90, 180, 270, 360]
-        let snapThreshold: Double = 8 // Degrees of "magnetism" - more subtle
-
-        for cardinalAngle in cardinalAngles {
-            let distance = abs(positiveAngle - cardinalAngle)
-            let wrappedDistance = min(distance, 360 - distance) // For the case of 0° and 360°
-
-            if wrappedDistance <= snapThreshold {
-                return cardinalAngle == 360 ? 0 : cardinalAngle // 360° becomes 0°
-            }
-        }
-
-        return positiveAngle
-    }
-
-    // Function to snap to the center of the screen
-    private func snapToCenter(offset: CGSize, screenCenter: CGPoint) -> CGSize {
-        var finalOffset = offset
-
-        // Horizontal snap (X center)
-        if abs(offset.width) <= snapThreshold {
-            finalOffset.width = 0
-        }
-
-        // Vertical snap (Y center)
-        if abs(offset.height) <= snapThreshold {
-            finalOffset.height = 0
-        }
-
-        return finalOffset
     }
 }
 

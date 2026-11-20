@@ -46,6 +46,16 @@ struct OverlayRenderState: Equatable {
     var isFlipped: Bool
 }
 
+/// Live result of the user moving / pinching / rotating the reference image.
+struct OverlayEdit {
+    enum Phase { case changed, ended }
+    var offset: CGSize
+    var scale: CGFloat
+    var rotation: Double
+    var isDragging: Bool
+    var phase: Phase
+}
+
 struct CameraView: UIViewRepresentable {
     let viewModel: CameraViewModel
     @Binding var cameraUIView: CameraUIView?
@@ -64,6 +74,24 @@ struct CameraView: UIViewRepresentable {
         cameraView.onViewportTransformedChange = { [weak viewModel] transformed in
             withAnimation(.easeInOut(duration: 0.2)) {
                 viewModel?.isViewportTransformed = transformed
+            }
+        }
+        cameraView.onOverlayEdit = { [weak viewModel] edit in
+            guard let viewModel else { return }
+            if edit.phase == .ended {
+                // Final values (may include the snap to center) settle with a short animation
+                withAnimation(.easeOut(duration: 0.2)) {
+                    viewModel.imageOffset = edit.offset
+                    viewModel.imageScale = edit.scale
+                    viewModel.imageRotation = edit.rotation
+                }
+            } else {
+                viewModel.imageOffset = edit.offset
+                viewModel.imageScale = edit.scale
+                viewModel.imageRotation = edit.rotation
+            }
+            if viewModel.isDraggingImage != edit.isDragging {
+                viewModel.isDraggingImage = edit.isDragging
             }
         }
         cameraView.setupCamera(mode: viewModel.captureMode)
@@ -110,11 +138,11 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
     private var lastReportedTransformed = false
     var onViewportTransformedChange: ((Bool) -> Void)?
     private var panGesture: UIPanGestureRecognizer?
+    private var pinchGesture: UIPinchGestureRecognizer?
 
     var isViewportEnabled: Bool = false {
         didSet {
             guard isViewportEnabled != oldValue else { return }
-            panGesture?.isEnabled = isViewportEnabled
             if !isViewportEnabled {
                 // Unlocking returns to the normal view so the image can be edited
                 resetViewport(animated: true)
@@ -332,7 +360,10 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
     }
 
     @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
-        guard isViewportEnabled else { return }
+        guard isViewportEnabled else {
+            handleImagePan(gesture)
+            return
+        }
         let translation = gesture.translation(in: self)
         viewportOffset.x += translation.x
         viewportOffset.y += translation.y
@@ -360,8 +391,156 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-        // Pan + pinch together: two fingers can move and zoom at the same time
+        // Pan + pinch (+ rotate) together: two fingers can move, zoom and turn at the same time
         true
+    }
+
+    override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        if gestureRecognizer is UIPanGestureRecognizer {
+            // Locked: drag moves the whole screen. Unlocked: only a drag that starts on the image.
+            return isViewportEnabled || isOnImage(gestureRecognizer)
+        }
+        if gestureRecognizer is UIRotationGestureRecognizer {
+            return !isViewportEnabled && isOnImage(gestureRecognizer)
+        }
+        return true
+    }
+
+    // MARK: - Editing the image (unlocked)
+    //
+    // The image is edited with native recognizers on this same view (no SwiftUI overlay on top):
+    // every touch reaches one view, so the gestures can't get stuck when fingers land partly
+    // on and partly off the image. Values are reported live to the view model.
+
+    var onOverlayEdit: ((OverlayEdit) -> Void)?
+
+    private var editState: (offset: CGSize, scale: CGFloat, rotation: Double)?
+    private var rotationAtStart: Double = 0
+    private var pinchEditsImage = false
+    private var panMovedImage = false
+    private let imageScaleRange: ClosedRange<CGFloat> = 0.1...5.0
+    private let centerSnapDistance: CGFloat = 30
+    private let angleSnapDegrees: Double = 8
+
+    /// True when the gesture's touches (or their center) are on the drawn image. A small margin
+    /// makes small images easier to grab.
+    private func isOnImage(_ gesture: UIGestureRecognizer) -> Bool {
+        guard overlayState?.image != nil, !overlayImageView.isHidden else { return false }
+        let hitArea = overlayImageView.bounds.insetBy(dx: -16, dy: -16)
+        if hitArea.contains(gesture.location(in: overlayImageView)) { return true }
+        for index in 0..<gesture.numberOfTouches
+        where hitArea.contains(gesture.location(ofTouch: index, in: overlayImageView)) {
+            return true
+        }
+        return false
+    }
+
+    private func isActive(_ recognizer: UIGestureRecognizer?) -> Bool {
+        guard let recognizer else { return false }
+        return recognizer.state == .began || recognizer.state == .changed
+    }
+
+    private var isImageGestureActive: Bool {
+        let panActive = !isViewportEnabled && isActive(panGesture)
+        let pinchActive = pinchEditsImage && isActive(pinchGesture)
+        let rotationActive = gestureRecognizers?.contains { $0 is UIRotationGestureRecognizer && isActive($0) } ?? false
+        return panActive || pinchActive || rotationActive
+    }
+
+    private func beginImageEdit() {
+        guard editState == nil, let state = overlayState else { return }
+        editState = (state.offset, state.scale, state.rotation)
+        panMovedImage = false
+    }
+
+    private func handleImagePan(_ gesture: UIPanGestureRecognizer) {
+        if gesture.state == .began { beginImageEdit() }
+        // Apply movement on .ended too: when the system coalesces the last touch moves into
+        // the "finger up" event, that final stretch would otherwise be lost.
+        if [.began, .changed, .ended].contains(gesture.state), var edit = editState {
+            let translation = gesture.translation(in: self)
+            gesture.setTranslation(.zero, in: self)
+            if translation != .zero {
+                edit.offset.width += translation.x
+                edit.offset.height += translation.y
+                editState = edit
+                panMovedImage = true
+                publishImageEdit(isDragging: gesture.state != .ended)
+            }
+        }
+        if gesture.state != .began && gesture.state != .changed {
+            finishImageEditIfIdle()
+        }
+    }
+
+    private func handleImagePinch(_ gesture: UIPinchGestureRecognizer) {
+        if [.began, .changed, .ended].contains(gesture.state), var edit = editState, gesture.scale != 1 {
+            let scaled = edit.scale * gesture.scale
+            edit.scale = min(max(scaled, imageScaleRange.lowerBound), imageScaleRange.upperBound)
+            editState = edit
+            gesture.scale = 1
+            publishImageEdit(isDragging: isActive(panGesture))
+        }
+        if gesture.state != .began && gesture.state != .changed {
+            pinchEditsImage = false
+            finishImageEditIfIdle()
+        }
+    }
+
+    @objc private func handleImageRotation(_ gesture: UIRotationGestureRecognizer) {
+        if gesture.state == .began {
+            beginImageEdit()
+            rotationAtStart = editState?.rotation ?? 0
+        }
+        if [.began, .changed, .ended].contains(gesture.state), var edit = editState {
+            let raw = rotationAtStart + Double(gesture.rotation) * 180 / .pi
+            let snapped = snappedAngle(raw)
+            if snapped != edit.rotation {
+                edit.rotation = snapped
+                editState = edit
+                publishImageEdit(isDragging: isActive(panGesture))
+            }
+        }
+        if gesture.state != .began && gesture.state != .changed {
+            finishImageEditIfIdle()
+        }
+    }
+
+    /// Ends the edit only when every image gesture has finished, so a finger lifted mid-pinch
+    /// doesn't make the image jump.
+    private func finishImageEditIfIdle() {
+        guard var edit = editState, !isImageGestureActive else { return }
+        // Magnetic center: snap each axis that ended within the threshold (after a drag)
+        if panMovedImage {
+            if abs(edit.offset.width) <= centerSnapDistance { edit.offset.width = 0 }
+            if abs(edit.offset.height) <= centerSnapDistance { edit.offset.height = 0 }
+        }
+        editState = nil
+        panMovedImage = false
+        onOverlayEdit?(OverlayEdit(offset: edit.offset, scale: edit.scale, rotation: edit.rotation,
+                                   isDragging: false, phase: .ended))
+    }
+
+    private func publishImageEdit(isDragging: Bool) {
+        guard let edit = editState, var state = overlayState else { return }
+        // Draw immediately; the view model gets the same values (so SwiftUI stays in sync)
+        state.offset = edit.offset
+        state.scale = edit.scale
+        state.rotation = edit.rotation
+        overlayState = state
+        layoutOverlay()
+        onOverlayEdit?(OverlayEdit(offset: edit.offset, scale: edit.scale, rotation: edit.rotation,
+                                   isDragging: isDragging, phase: .changed))
+    }
+
+    /// Normalizes to 0..<360 and snaps to 0/90/180/270 within a few degrees.
+    private func snappedAngle(_ angle: Double) -> Double {
+        var normalized = angle.truncatingRemainder(dividingBy: 360)
+        if normalized < 0 { normalized += 360 }
+        for cardinal in [0.0, 90, 180, 270, 360] where abs(normalized - cardinal) <= angleSnapDegrees {
+            return cardinal == 360 ? 0 : cardinal
+        }
+        return normalized
     }
 
     // MARK: - Capture mode
@@ -463,15 +642,19 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
     // MARK: - Gestures
 
     private func setupGestures() {
-        let pinchGesture = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
-        pinchGesture.delegate = self
-        addGestureRecognizer(pinchGesture)
+        let pinch = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
+        pinch.delegate = self
+        addGestureRecognizer(pinch)
+        pinchGesture = pinch
 
         let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
         pan.delegate = self
-        pan.isEnabled = isViewportEnabled
         addGestureRecognizer(pan)
         panGesture = pan
+
+        let rotation = UIRotationGestureRecognizer(target: self, action: #selector(handleImageRotation(_:)))
+        rotation.delegate = self
+        addGestureRecognizer(rotation)
 
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTapToFocus(_:)))
         tapGesture.numberOfTapsRequired = 1
@@ -483,7 +666,15 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
             handleViewportPinch(gesture)
             return
         }
-        // Unlocked: pinch changes the real camera zoom
+        // Unlocked: a pinch that starts on the image resizes it; elsewhere it zooms the camera
+        if gesture.state == .began {
+            pinchEditsImage = isOnImage(gesture)
+            if pinchEditsImage { beginImageEdit() }
+        }
+        if pinchEditsImage {
+            handleImagePinch(gesture)
+            return
+        }
         guard isZoomEnabled else { gesture.scale = 1.0; return }
         guard let device = captureDevice else { return }
 

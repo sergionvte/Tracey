@@ -60,6 +60,8 @@ class CameraViewModel: ObservableObject {
         }
     }
     @Published var showingSavedImages = false
+    /// True while the user is dragging the image (shows the center snap guides)
+    @Published var isDraggingImage = false
 
     let imageStorage = ImageStorageManager()
 
