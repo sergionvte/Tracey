@@ -50,15 +50,17 @@ struct CaptureModeSwitch: View {
                                                 : Color.white.opacity(isLocked ? 0.4 : 0.85))
                     .shadow(color: .black.opacity(isSelected ? 0 : 0.45), radius: 1.5, x: 0, y: 1)
                     .padding(.horizontal, 14)
-                    .frame(height: 36)
+                    // 44 pt tall touch target; the selected pill stays 36 pt
+                    .frame(height: 44)
                     .background {
                         if isSelected {
                             Capsule()
                                 .fill(Color.white.opacity(isLocked ? 0.55 : 1))
+                                .padding(.vertical, 4)
                                 .matchedGeometryEffect(id: "selected", in: selection)
                         }
                     }
-                    .contentShape(Capsule())
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(option.detail)
@@ -75,7 +77,7 @@ struct CaptureModeSwitch: View {
                 .opacity(isLocked ? 1 : 0)
                 .accessibilityHidden(true)
         }
-        .padding(4)
+        .padding(.horizontal, 4)
         .glassSurface(Capsule(), tint: Theme.controlTint)
         .animation(Theme.spring, value: mode)
         .animation(Theme.spring, value: isLocked)
@@ -172,10 +174,19 @@ struct BottomDock: View {
             }
             .padding(5)
             .glassSurface(Capsule(), tint: Theme.controlTint)
+            // No image yet: the welcome card is the only call to action. Faded in place so the
+            // dock keeps its layout.
+            .opacity(hasImage ? 1 : 0)
+            .allowsHitTesting(hasImage)
+            .accessibilityHidden(!hasImage)
             .frame(maxWidth: .infinity, alignment: .trailing)
 
             // Center: the key action while tracing
             LockButton(isLocked: isLocked, onLock: onLock, onUnlock: onUnlock, onLockedTap: onLockTapWhileLocked)
+                .opacity(hasImage ? 1 : 0)
+                .scaleEffect(hasImage ? 1 : 0.85)
+                .allowsHitTesting(hasImage)
+                .accessibilityHidden(!hasImage)
 
             // Right: edit the reference. Always in the hierarchy and only faded when there is
             // no image: removing it (right as the ⋯ menu it hosts closes, e.g. "Remove Image")
@@ -288,8 +299,14 @@ struct AdjustPanel: View {
     @ObservedObject var viewModel: CameraViewModel
     let isLocked: Bool
 
+    /// Model rotation (0..<360) shown as −180…180
+    private var signedRotation: Double {
+        let rotation = viewModel.imageRotation.isFinite ? viewModel.imageRotation : 0
+        return rotation > 180 ? rotation - 360 : rotation
+    }
+
     var body: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
                     Text("Adjust")
@@ -317,18 +334,20 @@ struct AdjustPanel: View {
             AdjustRow(
                 icon: "circle.lefthalf.filled",
                 title: "Opacity",
-                value: "\(Int(viewModel.imageOpacity * 100))%"
+                value: "\(Int(viewModel.imageOpacity * 100))%",
+                onReset: { viewModel.imageOpacity = 0.6 }
             ) {
                 Slider(value: $viewModel.imageOpacity, in: 0...1)
             }
 
             // Size and rotation would break the alignment with the paper, so only these are
             // disabled while locked; opacity stays live.
-            VStack(spacing: 18) {
+            VStack(spacing: 14) {
                 AdjustRow(
                     icon: "arrow.up.left.and.arrow.down.right",
                     title: "Size",
-                    value: String(format: "%.1f×", viewModel.imageScale)
+                    value: String(format: "%.1f×", viewModel.imageScale),
+                    onReset: { viewModel.imageScale = 1.0 }
                 ) {
                     Slider(value: $viewModel.imageScale, in: 0.1...5.0)
                 }
@@ -336,17 +355,22 @@ struct AdjustPanel: View {
                 AdjustRow(
                     icon: "rotate.right",
                     title: "Rotation",
-                    value: "\(Int(viewModel.imageRotation.isFinite ? viewModel.imageRotation : 0))°"
+                    value: "\(Int(signedRotation.rounded()))°",
+                    onReset: { viewModel.imageRotation = 0 }
                 ) {
-                    Slider(value: $viewModel.imageRotation, in: 0...360)
+                    // −180…180 centered on 0; the model keeps 0..<360
+                    Slider(value: Binding(
+                        get: { signedRotation },
+                        set: { viewModel.imageRotation = $0 < 0 ? $0 + 360 : $0 }
+                    ), in: -180...180)
                 }
-
             }
             .disabled(isLocked)
             .opacity(isLocked ? 0.45 : 1)
         }
         .tint(Theme.accent)
-        .padding(20)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
         .frame(maxWidth: 440)
         // Slightly darker glass so labels stay readable over a busy reference or bright paper
         .glassSurface(RoundedRectangle(cornerRadius: 30, style: .continuous), tint: .black.opacity(0.35))
@@ -360,10 +384,13 @@ private struct AdjustRow<Control: View>: View {
     let icon: String
     let title: String
     let value: String
+    /// Double-tap on the value resets the row to its default
+    let onReset: () -> Void
     @ViewBuilder var control: Control
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 10) {
                 Image(systemName: icon)
                     .font(.system(size: 14, weight: .semibold))
@@ -377,8 +404,22 @@ private struct AdjustRow<Control: View>: View {
                     .font(.subheadline.weight(.semibold).monospacedDigit())
                     .foregroundStyle(.white.opacity(0.7))
                     .contentTransition(.numericText())
+                    // Generous hit area for the double-tap reset
+                    .padding(.vertical, 6)
+                    .padding(.leading, 16)
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 2) {
+                        guard isEnabled else { return }
+                        withAnimation(.easeOut(duration: 0.2)) { onReset() }
+                        Haptics.light()
+                    }
+                    .padding(.vertical, -6)
             }
             control
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityAction(named: "Reset \(title)") {
+            if isEnabled { onReset() }
         }
     }
 }

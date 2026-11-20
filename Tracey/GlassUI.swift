@@ -162,7 +162,9 @@ struct ToastView: View {
             Text(message.text)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)
-                .lineLimit(1)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
                 .glyphShadow()
             if let title = message.actionTitle {
                 Button(action: onAction) {
@@ -177,8 +179,10 @@ struct ToastView: View {
             }
         }
         .padding(.horizontal, 18)
-        .frame(height: 42)
-        .glassSurface(Capsule(), tint: Theme.controlTint)
+        .padding(.vertical, 6)
+        .frame(minHeight: 42)
+        // A capsule for one line; two lines keep the same corner radius
+        .glassSurface(RoundedRectangle(cornerRadius: 21, style: .continuous), tint: Theme.controlTint)
         .accessibilityElement(children: message.actionTitle == nil ? .combine : .contain)
     }
 }

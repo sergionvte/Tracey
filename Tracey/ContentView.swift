@@ -80,11 +80,17 @@ struct ContentView: View {
                 // MARK: Glass controls
                 VStack(spacing: 12) {
                     HStack(alignment: .top) {
+                        // Hidden in place until there is an image: the welcome card is the only
+                        // call to action
+                        let hasImage = viewModel.overlayImage != nil
                         CaptureModeSwitch(
                             mode: viewModel.captureMode,
                             isLocked: viewModel.isPropertiesLocked,
                             onSelect: selectCaptureMode
                         )
+                        .opacity(hasImage ? 1 : 0)
+                        .allowsHitTesting(hasImage)
+                        .accessibilityHidden(!hasImage)
                         Spacer(minLength: 12)
                         ToolColumn(
                             isTorchOn: viewModel.isTorchOn,
@@ -129,6 +135,7 @@ struct ContentView: View {
                     // Only a toast with a button takes touches; others let taps reach the screen
                     .allowsHitTesting(isToastVisible && toast?.actionTitle != nil)
                     .accessibilityHidden(!isToastVisible)
+                    .padding(.horizontal, 24)
 
                     if showingImageControls && viewModel.overlayImage != nil {
                         AdjustPanel(viewModel: viewModel, isLocked: viewModel.isPropertiesLocked)
@@ -182,7 +189,8 @@ struct ContentView: View {
                 .accessibilityHidden(!showsWelcome)
 
                 // Camera access denied: explain and link to Settings (same in-place fading)
-                let showsCameraAccess = viewModel.isCameraAccessDenied && viewModel.overlayImage != nil && showingControls
+                let showsCameraAccess = viewModel.isCameraAccessDenied && viewModel.overlayImage != nil
+                    && showingControls && !showingImageControls
                 CameraAccessCard(onOpenSettings: {
                     if let url = URL(string: UIApplication.openSettingsURLString) {
                         UIApplication.shared.open(url)
@@ -225,7 +233,10 @@ struct ContentView: View {
         .sheet(isPresented: $viewModel.showingSavedImages, onDismiss: {
             showingImageControls = false // Ensure the main menu can be opened
         }) {
-            SavedImagesView(viewModel: viewModel, storage: viewModel.imageStorage, isPresented: $viewModel.showingSavedImages)
+            SavedImagesView(viewModel: viewModel, storage: viewModel.imageStorage, isPresented: $viewModel.showingSavedImages,
+                            onLoaded: {
+                                showToast(ToastMessage(icon: "checkmark.circle.fill", text: "Reference loaded", tint: Theme.accent))
+                            })
         }
     }
 
@@ -247,8 +258,9 @@ struct ContentView: View {
             showingImageControls = false
         }
         Haptics.medium()
-        showToast(ToastMessage(icon: "lock.fill", text: "Locked · drag & pinch to move the view",
-                               tint: Theme.accent))
+        showToast(ToastMessage(icon: "lock.fill",
+                               text: "Locked · drag & pinch to move the view. Hold the lock to unlock.",
+                               tint: Theme.accent, duration: 3.5))
     }
 
     private func unlock() {
@@ -263,7 +275,7 @@ struct ContentView: View {
     /// A plain tap on the lock while locked: explain how to unlock.
     private func holdToUnlockHint() {
         Haptics.light()
-        showToast(ToastMessage(icon: "hand.tap.fill", text: "Hold to unlock", tint: Theme.accent))
+        showToast(ToastMessage(icon: "hand.tap.fill", text: "Hold to unlock", tint: Theme.accent, duration: 3.5))
     }
 
     private func changeImageWhileLocked() {
@@ -284,9 +296,15 @@ struct ContentView: View {
 
     private func saveConfiguration() {
         let zoom = viewModel.cameraUIViewRef?.getCurrentZoomFactor() ?? 1.0
+        // Saving over the reference that was loaded from the Library updates that entry
+        let isUpdate = viewModel.imageStorage.loadedImageName.map { name in
+            viewModel.imageStorage.savedConfigurations.contains { $0.imageName == name }
+        } ?? false
         if viewModel.saveCurrentConfiguration(cameraZoom: zoom) {
             Haptics.success()
-            showToast(ToastMessage(icon: "checkmark.circle.fill", text: "Saved to Library", tint: Theme.accent))
+            showToast(ToastMessage(icon: "checkmark.circle.fill",
+                                   text: isUpdate ? "Updated in Library" : "Saved to Library",
+                                   tint: Theme.accent))
         } else {
             Haptics.warning()
             showToast(ToastMessage(icon: "exclamationmark.triangle.fill", text: "Couldn't save the image", tint: Theme.danger))

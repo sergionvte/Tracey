@@ -12,6 +12,8 @@ struct SavedImagesView: View {
     @ObservedObject var viewModel: CameraViewModel
     @ObservedObject var storage: ImageStorageManager
     @Binding var isPresented: Bool
+    /// Called after a reference was loaded
+    var onLoaded: () -> Void = {}
     @State private var pendingDelete: SavedImageConfiguration?
 
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: 14)]
@@ -78,6 +80,7 @@ struct SavedImagesView: View {
         viewModel.loadConfiguration(configuration)
         Haptics.light()
         isPresented = false
+        onLoaded()
     }
 }
 
@@ -154,11 +157,13 @@ struct SavedReferenceCard: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(width: 32, height: 32)
-                    .contentShape(Circle())
+                    .glassSurface(Circle(), interactive: true)
+                    // 44 pt touch target around the 32 pt button
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .glassSurface(Circle(), interactive: true)
-            .padding(8)
+            .padding(2)
             .accessibilityLabel("Delete")
         }
     }
@@ -166,7 +171,8 @@ struct SavedReferenceCard: View {
     private var details: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                Text(configuration.dateCreated, format: .dateTime.day().month(.abbreviated).year())
+                // e.g. "20 Nov, 14:06" (localized parts)
+                Text("\(configuration.dateCreated.formatted(.dateTime.day().month(.abbreviated))), \(configuration.dateCreated.formatted(date: .omitted, time: .shortened))")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
