@@ -161,12 +161,11 @@ struct BottomDock: View {
             // no image: removing it (right as the ⋯ menu it hosts closes, e.g. "Remove Image")
             // made the glass capsule slide down off screen.
             HStack(spacing: 2) {
+                // Stays enabled while locked: opacity can still be changed mid-trace
                 DockIconButton(
                     systemName: "slider.horizontal.3",
                     label: "Adjust image",
                     isActive: isAdjustOpen,
-                    isEnabled: !isLocked,
-                    onDisabledTap: onLockedTap,
                     action: onAdjust
                 )
                 moreMenu
@@ -228,16 +227,28 @@ struct AdjustPanel: View {
 
     var body: some View {
         VStack(spacing: 18) {
-            HStack {
-                Text("Adjust")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                Spacer()
-                if isLocked {
-                    Label("Locked", systemImage: "lock.fill")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Theme.accent)
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Text("Adjust")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                    Spacer()
+                    if isLocked {
+                        Label("Locked", systemImage: "lock.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Theme.accent)
+                    }
                 }
+                // Collapses to nothing while unlocked (kept in place, no insertion)
+                Text("Unlock to resize or rotate")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 4)
+                    .frame(maxWidth: .infinity, maxHeight: isLocked ? nil : 0, alignment: .topLeading)
+                    .opacity(isLocked ? 1 : 0)
+                    .clipped()
+                    .accessibilityHidden(!isLocked)
             }
 
             AdjustRow(
@@ -248,24 +259,30 @@ struct AdjustPanel: View {
                 Slider(value: $viewModel.imageOpacity, in: 0...1)
             }
 
-            AdjustRow(
-                icon: "arrow.up.left.and.arrow.down.right",
-                title: "Size",
-                value: String(format: "%.1f×", viewModel.imageScale)
-            ) {
-                Slider(value: $viewModel.imageScale, in: 0.1...5.0)
-            }
+            // Size and rotation would break the alignment with the paper, so only these are
+            // disabled while locked; opacity stays live.
+            VStack(spacing: 18) {
+                AdjustRow(
+                    icon: "arrow.up.left.and.arrow.down.right",
+                    title: "Size",
+                    value: String(format: "%.1f×", viewModel.imageScale)
+                ) {
+                    Slider(value: $viewModel.imageScale, in: 0.1...5.0)
+                }
 
-            AdjustRow(
-                icon: "rotate.right",
-                title: "Rotation",
-                value: "\(Int(viewModel.imageRotation.isFinite ? viewModel.imageRotation : 0))°"
-            ) {
-                Slider(value: $viewModel.imageRotation, in: 0...360)
+                AdjustRow(
+                    icon: "rotate.right",
+                    title: "Rotation",
+                    value: "\(Int(viewModel.imageRotation.isFinite ? viewModel.imageRotation : 0))°"
+                ) {
+                    Slider(value: $viewModel.imageRotation, in: 0...360)
+                }
+
             }
+            .disabled(isLocked)
+            .opacity(isLocked ? 0.45 : 1)
         }
         .tint(Theme.accent)
-        .disabled(isLocked)
         .padding(20)
         .frame(maxWidth: 440)
         // Slightly darker glass so labels stay readable over a busy reference or bright paper
