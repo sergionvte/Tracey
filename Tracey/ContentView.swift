@@ -1,4 +1,4 @@
-// ContentView.swift - With corrected gestures, improved controls, snap to center, focus button, lock, and always-on screen
+// ContentView.swift - Tracing screen: camera + reference overlay with floating Liquid Glass controls
 import SwiftUI
 import UIKit
 
@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var gestureInProgress = false
     @State private var currentGestureScale: CGFloat = 1.0 // For incremental zoom
     @State private var cameraUIView: CameraUIView? = nil // Reference to camera view
+    @State private var toast: ToastMessage? = nil
 
     // Snap to center configuration
     private let snapThreshold: CGFloat = 30 // Distance in points to activate snap
@@ -177,197 +178,104 @@ struct ContentView: View {
                     )
                 }
 
-                // Focus and lock buttons in the top right corner
-                VStack {
-                    HStack {
-                        Spacer()
-                        VStack(spacing: 10) {
-                            // Capture mode button: video (smoother) / photo (wider frame).
-                            // Disabled while locked because switching changes the camera framing.
-                            Button(action: {
-                                guard !viewModel.isPropertiesLocked else { return }
-                                viewModel.toggleCaptureMode()
-                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                            }) {
-                                Image(systemName: viewModel.captureMode.iconName)
-                                    .font(.title3)
-                                    .foregroundColor(.white)
-                                    .frame(width: 44, height: 44)
-                                    .background(viewModel.isPropertiesLocked ? Color.gray.opacity(0.5) : (viewModel.captureMode == .photo ? Color.orange.opacity(0.85) : Color.black.opacity(0.6)))
-                                    .clipShape(Circle())
-                                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-                            }
-                            .accessibilityLabel(viewModel.captureMode == .video ? "Switch to photo mode" : "Switch to video mode")
-
-                            // Focus button
-                            Button(action: {
-                                // Focus at the center of the screen
+                // MARK: Glass controls
+                VStack(spacing: 12) {
+                    HStack(alignment: .top) {
+                        CaptureModeSwitch(
+                            mode: viewModel.captureMode,
+                            isLocked: viewModel.isPropertiesLocked,
+                            onSelect: selectCaptureMode
+                        )
+                        Spacer(minLength: 12)
+                        ToolColumn(
+                            isTorchOn: viewModel.isTorchOn,
+                            isFlipped: viewModel.isFlipped,
+                            hasImage: viewModel.overlayImage != nil,
+                            isLocked: viewModel.isPropertiesLocked,
+                            showsResetView: viewModel.isPropertiesLocked && viewModel.isViewportTransformed,
+                            onFocus: {
                                 cameraUIView?.focusAtCenter()
-                            }) {
-                                Image(systemName: "viewfinder.circle")
-                                    .font(.title2)
-                                    .foregroundColor(.white)
-                                    .frame(width: 44, height: 44)
-                                    .background(Color.black.opacity(0.6))
-                                    .clipShape(Circle())
-                                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-                            }
-
-                            // Torch button
-                            Button(action: {
+                                Haptics.light()
+                            },
+                            onTorch: {
                                 viewModel.toggleTorch()
-                            }) {
-                                Image(systemName: viewModel.isTorchOn ? "flashlight.on.fill" : "flashlight.off.fill")
-                                    .font(.title2)
-                                    .foregroundColor(.white)
-                                    .frame(width: 44, height: 44)
-                                    .background(viewModel.isTorchOn ? Color.blue.opacity(0.8) : Color.black.opacity(0.6))
-                                    .clipShape(Circle())
-                                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-                            }
-
-                            // Horizontal flip button (between torch and lock)
-                            Button(action: {
-                                if viewModel.isPropertiesLocked {
-                                    // Consume the tap but do nothing
-                                    return
-                                }
+                                Haptics.light()
+                            },
+                            onFlip: {
                                 viewModel.flipOverlayImage()
-                            }) {
-                                Image(systemName: "arrow.left.and.right.righttriangle.left.righttriangle.right")
-                                    .font(.title2)
-                                    .foregroundColor(.white)
-                                    .frame(width: 44, height: 44)
-                                    .background(viewModel.isPropertiesLocked ? Color.gray.opacity(0.5) : (viewModel.isFlipped ? Color.green.opacity(0.8) : Color.black.opacity(0.6)))
-                                    .clipShape(Circle())
-                                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                                Haptics.light()
+                            },
+                            onLockedTap: lockedWarning,
+                            onResetView: {
+                                viewModel.resetViewport()
+                                Haptics.light()
                             }
-
-                            // Lock button
-                            Button(action: {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    viewModel.isPropertiesLocked.toggle()
-                                }
-
-                                // Haptic feedback
-                                let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                                impactFeedback.impactOccurred()
-                            }) {
-                                Image(systemName: viewModel.isPropertiesLocked ? "lock.fill" : "lock.open")
-                                    .font(.title2)
-                                    .foregroundColor(.white)
-                                    .frame(width: 44, height: 44)
-                                    .background(viewModel.isPropertiesLocked ? Color.red.opacity(0.8) : Color.black.opacity(0.6))
-                                    .clipShape(Circle())
-                                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-                            }
-
-                            // Reset view button: only when the locked screen has been moved/zoomed
-                            if viewModel.isPropertiesLocked && viewModel.isViewportTransformed {
-                                Button(action: {
-                                    viewModel.resetViewport()
-                                }) {
-                                    Image(systemName: "arrow.down.right.and.arrow.up.left")
-                                        .font(.title3)
-                                        .foregroundColor(.white)
-                                        .frame(width: 44, height: 44)
-                                        .background(Color.blue.opacity(0.8))
-                                        .clipShape(Circle())
-                                        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-                                }
-                                .accessibilityLabel("Reset view")
-                                .transition(.scale.combined(with: .opacity))
-                            }
-                        }
-                        .padding(.trailing, 20)
-                        .padding(.top, 10)
+                        )
                     }
-                    Spacer()
-                }
-                .opacity(showingControls ? 1 : 0)
-                .animation(.easeInOut(duration: 0.3), value: showingControls)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 4)
 
-                // Image controls (new separate controls) - Only allow changes if not locked
-                if showingImageControls && viewModel.overlayImage != nil {
-                    VStack {
-                        Spacer()
+                    Spacer(minLength: 0)
 
-                        ImageControlsView(viewModel: viewModel, isLocked: viewModel.isPropertiesLocked)
+                    if let toast {
+                        ToastView(message: toast)
+                            .id(toast.id)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
-
-                        Spacer().frame(height: 120) // Space for main controls
                     }
-                }
 
-                // Main controls - HERE WE ADD THE ANIMATION
-                VStack {
-                    Spacer()
-                    ControlsView(
-                        viewModel: viewModel,
-                        showingImagePicker: $showingImagePicker,
-                        showingImageControls: $showingImageControls,
-                        isPropertiesLocked: viewModel.isPropertiesLocked
+                    if showingImageControls && viewModel.overlayImage != nil {
+                        AdjustPanel(viewModel: viewModel, isLocked: viewModel.isPropertiesLocked)
+                            .padding(.horizontal, 16)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+
+                    BottomDock(
+                        hasImage: viewModel.overlayImage != nil,
+                        isLocked: viewModel.isPropertiesLocked,
+                        isAdjustOpen: showingImageControls,
+                        onImport: { showingImagePicker = true },
+                        onLibrary: { viewModel.showingSavedImages = true },
+                        onToggleLock: toggleLock,
+                        onAdjust: {
+                            withAnimation(Theme.spring) { showingImageControls.toggle() }
+                            Haptics.light()
+                        },
+                        onCenter: {
+                            viewModel.centerImage()
+                            Haptics.light()
+                        },
+                        onSave: saveConfiguration,
+                        onRemove: {
+                            viewModel.removeOverlayImage()
+                            withAnimation(Theme.spring) { showingImageControls = false }
+                        },
+                        onLockedTap: lockedWarning
                     )
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
                 }
                 .opacity(showingControls ? 1 : 0)
-                .animation(.easeInOut(duration: 0.3), value: showingControls)
+                .allowsHitTesting(showingControls)
 
-                // Camera zoom indicator and lock state
-                VStack {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(viewModel.isPropertiesLocked
-                                 ? "✋ Drag to move • Pinch to zoom view"
-                                 : "📹 Pinch to zoom • Tap to focus")
-                                .font(.caption)
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(Color.black.opacity(0.6))
-                                .cornerRadius(20)
-                                .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-
-                            // Capture mode indicator
-                            HStack(spacing: 4) {
-                                Image(systemName: viewModel.captureMode.iconName)
-                                    .font(.caption2)
-                                Text(viewModel.captureMode.title)
-                                    .font(.caption2)
-                            }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 4)
-                            .background(Color.black.opacity(0.6))
-                            .cornerRadius(15)
-                            .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-
-                            // Lock state indicator
-                            if viewModel.overlayImage != nil {
-                                HStack(spacing: 4) {
-                                    Image(systemName: viewModel.isPropertiesLocked ? "lock.fill" : "lock.open")
-                                        .font(.caption2)
-                                        .foregroundColor(viewModel.isPropertiesLocked ? .red : .green)
-
-                                    Text(viewModel.isPropertiesLocked ? "Properties locked" : "Properties unlocked")
-                                        .font(.caption2)
-                                        .foregroundColor(viewModel.isPropertiesLocked ? .red : .green)
-                                }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 4)
-                                .background(Color.black.opacity(0.6))
-                                .cornerRadius(15)
-                                .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-                            }
-                        }
-                        Spacer()
-                    }
-                    .padding()
-                    Spacer()
+                // Welcome card until there is a reference image
+                if viewModel.overlayImage == nil && showingControls {
+                    EmptyStateCard(
+                        onImport: { showingImagePicker = true },
+                        onLibrary: { viewModel.showingSavedImages = true }
+                    )
+                    .padding(.horizontal, 32)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 }
-                .opacity(showingControls ? 1 : 0)
-                .animation(.easeInOut(duration: 0.3), value: showingControls)
             }
+            .animation(Theme.spring, value: showingImageControls)
+            .animation(Theme.spring, value: toast)
+            .animation(.easeInOut(duration: 0.25), value: showingControls)
+            .animation(Theme.spring, value: viewModel.overlayImage == nil)
         }
+        .preferredColorScheme(.dark)
+        // Immersive while drawing: hiding the controls also hides the status bar and home indicator
+        .statusBarHidden(!showingControls)
+        .persistentSystemOverlays(showingControls ? .automatic : .hidden)
         .onAppear {
             // Keep the screen active
             UIApplication.shared.isIdleTimerDisabled = true
@@ -385,7 +293,7 @@ struct ContentView: View {
         .sheet(isPresented: $viewModel.showingSavedImages, onDismiss: {
             showingImageControls = false // Ensure the main menu can be opened
         }) {
-            SavedImagesView(viewModel: viewModel, isPresented: $viewModel.showingSavedImages)
+            SavedImagesView(viewModel: viewModel, storage: viewModel.imageStorage, isPresented: $viewModel.showingSavedImages)
         }
     }
 
@@ -395,6 +303,55 @@ struct ContentView: View {
             if !showingControls {
                 showingImageControls = false
             }
+        }
+    }
+
+    // MARK: - Actions
+
+    private func toggleLock() {
+        withAnimation(Theme.spring) {
+            viewModel.isPropertiesLocked.toggle()
+            if viewModel.isPropertiesLocked { showingImageControls = false }
+        }
+        Haptics.medium()
+        if viewModel.isPropertiesLocked {
+            showToast(ToastMessage(icon: "lock.fill", text: "Locked · drag & pinch to move the view", tint: Theme.accent))
+        } else {
+            showToast(ToastMessage(icon: "lock.open.fill", text: "Unlocked · edit your reference"))
+        }
+    }
+
+    private func selectCaptureMode(_ mode: CameraCaptureMode) {
+        guard mode != viewModel.captureMode else { return }
+        guard !viewModel.isPropertiesLocked else {
+            lockedWarning()
+            return
+        }
+        viewModel.captureMode = mode
+        Haptics.light()
+        showToast(ToastMessage(icon: mode.iconName, text: mode.detail))
+    }
+
+    private func saveConfiguration() {
+        let zoom = viewModel.cameraUIViewRef?.getCurrentZoomFactor() ?? 1.0
+        if viewModel.saveCurrentConfiguration(cameraZoom: zoom) {
+            Haptics.success()
+            showToast(ToastMessage(icon: "checkmark.circle.fill", text: "Saved to Library", tint: Theme.accent))
+        } else {
+            Haptics.warning()
+            showToast(ToastMessage(icon: "exclamationmark.triangle.fill", text: "Couldn't save the image", tint: Theme.danger))
+        }
+    }
+
+    private func lockedWarning() {
+        Haptics.warning()
+        showToast(ToastMessage(icon: "lock.fill", text: "Unlock to edit", tint: Theme.accent))
+    }
+
+    private func showToast(_ message: ToastMessage) {
+        toast = message
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            if toast?.id == message.id { toast = nil }
         }
     }
 
@@ -456,7 +413,7 @@ struct SnapIndicators: View {
             // Vertical center line
             if showVerticalIndicator {
                 Rectangle()
-                    .fill(Color.yellow.opacity(0.8))
+                    .fill(Theme.accent.opacity(0.9))
                     .frame(width: 2)
                     .position(x: screenCenter.x, y: screenCenter.y)
                     .animation(.easeInOut(duration: 0.2), value: showVerticalIndicator)
@@ -465,7 +422,7 @@ struct SnapIndicators: View {
             // Horizontal center line
             if showHorizontalIndicator {
                 Rectangle()
-                    .fill(Color.yellow.opacity(0.8))
+                    .fill(Theme.accent.opacity(0.9))
                     .frame(height: 2)
                     .position(x: screenCenter.x, y: screenCenter.y)
                     .animation(.easeInOut(duration: 0.2), value: showHorizontalIndicator)
@@ -474,138 +431,12 @@ struct SnapIndicators: View {
             // Center dot
             if showVerticalIndicator || showHorizontalIndicator {
                 Circle()
-                    .fill(Color.yellow.opacity(0.9))
+                    .fill(Theme.accent)
                     .frame(width: 8, height: 8)
                     .position(x: screenCenter.x, y: screenCenter.y)
                     .animation(.easeInOut(duration: 0.2), value: showVerticalIndicator || showHorizontalIndicator)
             }
         }
         .allowsHitTesting(false) // Allow gestures to pass through
-    }
-}
-
-// New view for image controls with lock
-struct ImageControlsView: View {
-    @ObservedObject var viewModel: CameraViewModel
-    let isLocked: Bool
-
-    var body: some View {
-        VStack(spacing: 12) {
-            // Row 1: Opacity
-            VStack(spacing: 4) {
-                Text("Opacity")
-                    .foregroundColor(isLocked ? .gray : .white)
-                    .font(.caption)
-                    .fontWeight(.medium)
-
-                HStack {
-                    Text("0%")
-                        .foregroundColor(.white.opacity(0.7))
-                        .font(.caption2)
-
-                    Slider(value: $viewModel.imageOpacity, in: 0...1)
-                        .frame(width: 180)
-                        .disabled(isLocked)
-                        .opacity(isLocked ? 0.5 : 1.0)
-
-                    Text("100%")
-                        .foregroundColor(.white.opacity(0.7))
-                        .font(.caption2)
-                }
-
-                Text("\(Int(viewModel.imageOpacity * 100))%")
-                    .foregroundColor(isLocked ? .gray : .white)
-                    .font(.caption2)
-                    .fontWeight(.semibold)
-            }
-
-            Divider()
-                .background(Color.white.opacity(0.3))
-
-            // Row 2: Size
-            VStack(spacing: 4) {
-                Text("Size")
-                    .foregroundColor(isLocked ? .gray : .white)
-                    .font(.caption)
-                    .fontWeight(.medium)
-
-                HStack {
-                    Text("0.1x")
-                        .foregroundColor(.white.opacity(0.7))
-                        .font(.caption2)
-
-                    Slider(value: $viewModel.imageScale, in: 0.1...5.0)
-                        .frame(width: 180)
-                        .disabled(isLocked)
-                        .opacity(isLocked ? 0.5 : 1.0)
-
-                    Text("5.0x")
-                        .foregroundColor(.white.opacity(0.7))
-                        .font(.caption2)
-                }
-
-                Text("\(String(format: "%.1f", viewModel.imageScale))x")
-                    .foregroundColor(isLocked ? .gray : .white)
-                    .font(.caption2)
-                    .fontWeight(.semibold)
-            }
-
-            Divider()
-                .background(Color.white.opacity(0.3))
-
-            // Row 3: Rotation
-            VStack(spacing: 4) {
-                Text("Rotation")
-                    .foregroundColor(isLocked ? .gray : .white)
-                    .font(.caption)
-                    .fontWeight(.medium)
-
-                HStack {
-                    Text("0°")
-                        .foregroundColor(.white.opacity(0.7))
-                        .font(.caption2)
-
-                    Slider(value: $viewModel.imageRotation, in: 0...360)
-                        .frame(width: 180)
-                        .disabled(isLocked)
-                        .opacity(isLocked ? 0.5 : 1.0)
-
-                    Text("360°")
-                        .foregroundColor(.white.opacity(0.7))
-                        .font(.caption2)
-                }
-
-                Text("\(Int(viewModel.imageRotation.isFinite ? viewModel.imageRotation : 0))°")
-                    .foregroundColor(isLocked ? .gray : .white)
-                    .font(.caption2)
-                    .fontWeight(.semibold)
-            }
-
-            // Lock indicator if locked
-            if isLocked {
-                HStack(spacing: 6) {
-                    Image(systemName: "lock.fill")
-                        .font(.caption2)
-                        .foregroundColor(.red)
-
-                    Text("Controls locked")
-                        .font(.caption2)
-                        .foregroundColor(.red)
-                        .fontWeight(.medium)
-                }
-                .padding(.top, 8)
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.black.opacity(isLocked ? 0.6 : 0.8))
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(isLocked ? Color.red.opacity(0.5) : Color.white.opacity(0.2), lineWidth: 1)
-                )
-        )
-        .padding(.horizontal, 20)
     }
 }
