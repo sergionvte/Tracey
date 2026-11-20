@@ -193,7 +193,17 @@ class CameraViewModel: ObservableObject {
     @Published var selectedImageFromGallery: UIImage? {
         didSet {
             if let newValue = selectedImageFromGallery {
-                overlayImage = newValue
+                // A new reference starts fresh: it must not inherit the previous image's size,
+                // rotation, opacity or position (set without animation, it's a different image)
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    imageScale = 1.0
+                    imageRotation = 0.0
+                    imageOpacity = 0.6
+                    imageOffset = .zero
+                    overlayImage = newValue
+                }
                 imageStorage.loadedImageName = nil
                 isFlipped = false
                 isPropertiesLocked = false
