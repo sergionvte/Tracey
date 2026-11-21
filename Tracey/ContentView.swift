@@ -247,6 +247,11 @@ struct ContentView: View {
         }
         // One-time hint the first time an image ever appears
         .onChange(of: viewModel.overlayImage != nil) { _, hasImage in
+            // Adding or removing an image (picker, Library, Remove, Undo) always shows the
+            // controls, so a hidden state can't carry over to the next image or the welcome card
+            if !showingControls {
+                withAnimation(.easeInOut(duration: 0.25)) { showingControls = true }
+            }
             let key = "hasShownPlacementHint"
             guard hasImage, !UserDefaults.standard.bool(forKey: key) else { return }
             UserDefaults.standard.set(true, forKey: key)
@@ -267,6 +272,8 @@ struct ContentView: View {
     }
 
     private func toggleControls() {
+        // Nothing to hide for on the welcome screen: hiding the card there left a blank screen
+        guard viewModel.overlayImage != nil else { return }
         withAnimation(.easeInOut(duration: 0.3)) {
             showingControls.toggle()
             if !showingControls {
