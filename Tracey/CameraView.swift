@@ -437,6 +437,8 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
 
     /// Global-coordinate rects where a tap / long press belongs to a control drawn above this view.
     var tapExclusionRects: [CGRect] = []
+    /// When the finger went down for the current tap (system uptime)
+    private var tapTouchDownTime: TimeInterval = 0
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
         guard gestureRecognizer is UITapGestureRecognizer || gestureRecognizer is UILongPressGestureRecognizer else {
@@ -444,6 +446,7 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
         }
         // Only touches that really landed on this view (not on a UIKit view above it)...
         guard touch.view === self else { return false }
+        if gestureRecognizer is UITapGestureRecognizer { tapTouchDownTime = touch.timestamp }
         // ...and not on a SwiftUI control drawn above it whose hit test was missed
         let point = touch.location(in: nil)
         return !tapExclusionRects.contains { $0.contains(point) }
@@ -456,6 +459,12 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
         }
         if gestureRecognizer is UIRotationGestureRecognizer {
             return !isViewportEnabled && isOnImage(gestureRecognizer)
+        }
+        if gestureRecognizer is UILongPressGestureRecognizer {
+            // Locked: a resting hand must not switch the locked focus back to autofocus (the
+            // Focus center button still works). Unlocked: a still finger on the image is about
+            // to drag it, not asking to focus.
+            return !isViewportEnabled && !isOnImage(gestureRecognizer)
         }
         return true
     }
@@ -776,6 +785,9 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
 
     @objc private func handleSingleTap(_ gesture: UITapGestureRecognizer) {
         guard gesture.state == .ended else { return }
+        // A press held still for a while isn't a tap (e.g. a hold on the image while locked or
+        // before dragging, where the long press doesn't run)
+        guard ProcessInfo.processInfo.systemUptime - tapTouchDownTime < 0.5 else { return }
         onSingleTap?()
     }
 
