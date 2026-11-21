@@ -64,6 +64,8 @@ class CameraViewModel: ObservableObject {
     @Published var isDraggingImage = false
     /// Camera access is denied or restricted (shows a card that links to Settings)
     @Published var isCameraAccessDenied = false
+    /// Camera access has been granted (false while undecided or denied)
+    @Published var isCameraAuthorized = false
 
     let imageStorage = ImageStorageManager()
 

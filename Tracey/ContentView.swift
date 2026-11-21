@@ -4,6 +4,7 @@ import UIKit
 
 struct ContentView: View {
     @StateObject private var viewModel = CameraViewModel()
+    @Environment(\.scenePhase) private var scenePhase
     @State private var showingImagePicker = false
     @State private var showingControls = true
     @State private var showingImageControls = false // New state for image controls
@@ -252,12 +253,10 @@ struct ContentView: View {
             if !showingControls {
                 withAnimation(.easeInOut(duration: 0.25)) { showingControls = true }
             }
-            let key = "hasShownPlacementHint"
-            guard hasImage, !UserDefaults.standard.bool(forKey: key) else { return }
-            UserDefaults.standard.set(true, forKey: key)
-            showToast(ToastMessage(icon: "hand.draw.fill", text: "Drag, pinch & rotate to place it · then tap Lock",
-                                   tint: Theme.accent, duration: 3.5))
+            showPlacementHintIfNeeded()
         }
+        .onChange(of: viewModel.isCameraAuthorized) { _, _ in showPlacementHintIfNeeded() }
+        .onChange(of: scenePhase) { _, _ in showPlacementHintIfNeeded() }
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(selectedImage: $viewModel.selectedImageFromGallery) // Use the property that clears loadedImageName
         }
@@ -268,6 +267,26 @@ struct ContentView: View {
                             onLoaded: {
                                 showToast(ToastMessage(icon: "checkmark.circle.fill", text: "Reference loaded", tint: Theme.accent))
                             })
+        }
+    }
+
+    /// One-time hint the first time an image is on screen. Waits until camera access is granted
+    /// and the app is active, so the camera permission alert can't hide it; the flag is only set
+    /// when the hint is really shown.
+    private func showPlacementHintIfNeeded() {
+        let key = "hasShownPlacementHint"
+        func canShow() -> Bool {
+            viewModel.overlayImage != nil && viewModel.isCameraAuthorized
+                && UIApplication.shared.applicationState == .active
+                && !UserDefaults.standard.bool(forKey: key)
+        }
+        guard canShow() else { return }
+        // Give a just-answered permission alert time to go away
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            guard canShow() else { return }
+            UserDefaults.standard.set(true, forKey: key)
+            showToast(ToastMessage(icon: "hand.draw.fill", text: "Drag, pinch & rotate to place it · then tap Lock",
+                                   tint: Theme.accent, duration: 3.5))
         }
     }
 

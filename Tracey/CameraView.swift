@@ -78,7 +78,9 @@ struct CameraView: UIViewRepresentable {
         cameraView.isZoomEnabled = isZoomEnabled
         cameraView.onSingleTap = onSingleTap
         cameraView.onCameraAccessDenied = { [weak viewModel] denied in
-            guard let viewModel, viewModel.isCameraAccessDenied != denied else { return }
+            guard let viewModel else { return }
+            if viewModel.isCameraAuthorized == denied { viewModel.isCameraAuthorized = !denied }
+            guard viewModel.isCameraAccessDenied != denied else { return }
             withAnimation(Theme.spring) { viewModel.isCameraAccessDenied = denied }
         }
         cameraView.onViewportTransformedChange = { [weak viewModel] transformed in
