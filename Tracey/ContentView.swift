@@ -12,6 +12,8 @@ struct ContentView: View {
     @State private var toast: ToastMessage? = nil
     /// Last toast shown; keeps the content while it fades out
     @State private var lastToast: ToastMessage? = nil
+    /// Where the toast is on screen (global), so the camera view ignores taps on an action toast
+    @State private var toastFrame: CGRect = .zero
 
     // Snap to center configuration
     private let snapThreshold: CGFloat = 30 // Distance in points to activate snap
@@ -60,6 +62,9 @@ struct ContentView: View {
                     ),
                     // Camera stays off until there is a reference image to trace
                     isCameraActive: viewModel.overlayImage != nil,
+                    // Belt and braces: never treat a tap on the Undo toast as a screen tap
+                    tapExclusionRects: toast?.actionTitle != nil && showingControls
+                        ? [toastFrame.insetBy(dx: -8, dy: -8)] : [],
                     onSingleTap: toggleControls
                 )
                 .ignoresSafeArea()
@@ -135,38 +140,51 @@ struct ContentView: View {
                     // Only a toast with a button takes touches; others let taps reach the screen
                     .allowsHitTesting(isToastVisible && toast?.actionTitle != nil)
                     .accessibilityHidden(!isToastVisible)
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { toastFrame = $0 }
                     .padding(.horizontal, 24)
 
-                    if showingImageControls && viewModel.overlayImage != nil {
+                    // Adjust panel + dock as one item so the hidden panel adds no spacing.
+                    // The panel is always in the hierarchy and fades/slides in place: removing it
+                    // with a transition while the ⋯ menu was closing (Remove Image) left an
+                    // invisible panel over the toast that swallowed the Undo tap.
+                    let showsAdjust = showingImageControls && viewModel.overlayImage != nil
+                    VStack(spacing: 0) {
                         AdjustPanel(viewModel: viewModel, isLocked: viewModel.isPropertiesLocked)
                             .padding(.horizontal, 16)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
+                            .padding(.bottom, showsAdjust ? 12 : 0)
+                            // Hidden: takes no height (doesn't push the toast up), draws nothing,
+                            // takes no touches
+                            .frame(height: showsAdjust ? nil : 0, alignment: .bottom)
+                            .opacity(showsAdjust ? 1 : 0)
+                            .offset(y: showsAdjust ? 0 : 24)
+                            .allowsHitTesting(showsAdjust)
+                            .accessibilityHidden(!showsAdjust)
 
-                    BottomDock(
-                        hasImage: viewModel.overlayImage != nil,
-                        isLocked: viewModel.isPropertiesLocked,
-                        isAdjustOpen: showingImageControls,
-                        onImport: { showingImagePicker = true },
-                        onLibrary: { viewModel.showingSavedImages = true },
-                        onLock: lock,
-                        onUnlock: unlock,
-                        onLockTapWhileLocked: holdToUnlockHint,
-                        onChangeImageWhileLocked: changeImageWhileLocked,
-                        onAdjust: {
-                            withAnimation(Theme.spring) { showingImageControls.toggle() }
-                            Haptics.light()
-                        },
-                        onCenter: {
-                            viewModel.centerImage()
-                            Haptics.light()
-                        },
-                        onSave: saveConfiguration,
-                        onRemove: removeImage,
-                        onLockedTap: lockedWarning
-                    )
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
+                        BottomDock(
+                            hasImage: viewModel.overlayImage != nil,
+                            isLocked: viewModel.isPropertiesLocked,
+                            isAdjustOpen: showingImageControls,
+                            onImport: { showingImagePicker = true },
+                            onLibrary: { viewModel.showingSavedImages = true },
+                            onLock: lock,
+                            onUnlock: unlock,
+                            onLockTapWhileLocked: holdToUnlockHint,
+                            onChangeImageWhileLocked: changeImageWhileLocked,
+                            onAdjust: {
+                                withAnimation(Theme.spring) { showingImageControls.toggle() }
+                                Haptics.light()
+                            },
+                            onCenter: {
+                                viewModel.centerImage()
+                                Haptics.light()
+                            },
+                            onSave: saveConfiguration,
+                            onRemove: removeImage,
+                            onLockedTap: lockedWarning
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 8)
+                    }
                 }
                 .opacity(showingControls ? 1 : 0)
                 .allowsHitTesting(showingControls)
@@ -327,7 +345,7 @@ struct ContentView: View {
     private func removeImage() {
         guard let removed = viewModel.removeOverlayImage() else { return }
         withAnimation(Theme.spring) { showingImageControls = false }
-        showToast(ToastMessage(icon: "trash", text: "Image removed", duration: 5, actionTitle: "Undo") {
+        showToast(ToastMessage(icon: "trash", text: "Image removed", duration: 8, actionTitle: "Undo") {
             viewModel.restore(removed)
             Haptics.light()
         })
@@ -341,10 +359,16 @@ struct ContentView: View {
 
     private func showToast(_ message: ToastMessage) {
         lastToast = message
-        toast = message
         UIAccessibility.post(notification: .announcement, argument: message.text)
-        DispatchQueue.main.asyncAfter(deadline: .now() + message.duration) {
-            if toast?.id == message.id { toast = nil }
+        // The countdown starts once the toast has actually animated in, not when it was
+        // requested: right after a ⋯ menu action (Remove Image) the menu is still closing and the
+        // toast can appear much later, which used to leave almost no time to tap Undo.
+        withAnimation(Theme.spring, completionCriteria: .logicallyComplete) {
+            toast = message
+        } completion: {
+            DispatchQueue.main.asyncAfter(deadline: .now() + message.duration) {
+                if toast?.id == message.id { toast = nil }
+            }
         }
     }
 }

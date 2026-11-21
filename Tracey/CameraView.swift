@@ -67,6 +67,9 @@ struct CameraView: UIViewRepresentable {
     var overlayLayoutRect: CGRect
     /// The camera only runs while this is true (there is a reference image on screen).
     var isCameraActive: Bool
+    /// Screen areas (global coordinates) where taps and long presses must be ignored, e.g. a toast
+    /// with an Undo button.
+    var tapExclusionRects: [CGRect] = []
     /// A single tap anywhere on the camera view (shows / hides the floating controls).
     var onSingleTap: () -> Void
 
@@ -113,6 +116,7 @@ struct CameraView: UIViewRepresentable {
     func updateUIView(_ uiView: CameraUIView, context: Context) {
         uiView.isZoomEnabled = isZoomEnabled
         uiView.onSingleTap = onSingleTap
+        uiView.tapExclusionRects = tapExclusionRects
         uiView.isViewportEnabled = isViewportEnabled
         uiView.overlayLayoutRect = overlayLayoutRect
         uiView.setCameraActive(isCameraActive)
@@ -431,6 +435,20 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
         true
     }
 
+    /// Global-coordinate rects where a tap / long press belongs to a control drawn above this view.
+    var tapExclusionRects: [CGRect] = []
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        guard gestureRecognizer is UITapGestureRecognizer || gestureRecognizer is UILongPressGestureRecognizer else {
+            return true
+        }
+        // Only touches that really landed on this view (not on a UIKit view above it)...
+        guard touch.view === self else { return false }
+        // ...and not on a SwiftUI control drawn above it whose hit test was missed
+        let point = touch.location(in: nil)
+        return !tapExclusionRects.contains { $0.contains(point) }
+    }
+
     override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         if gestureRecognizer is UIPanGestureRecognizer {
             // Locked: drag moves the whole screen. Unlocked: only a drag that starts on the image.
@@ -714,6 +732,7 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
         // recognizer is the single source of truth (a SwiftUI tap on top never received them).
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleSingleTap(_:)))
         tapGesture.numberOfTapsRequired = 1
+        tapGesture.delegate = self
         addGestureRecognizer(tapGesture)
 
         // Touch and hold focuses (and meters exposure) at that point

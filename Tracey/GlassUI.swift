@@ -155,10 +155,12 @@ struct ToastView: View {
     var onAction: () -> Void = {}
 
     var body: some View {
-        HStack(spacing: 8) {
+        let hasAction = message.actionTitle != nil
+        HStack(spacing: 0) {
             Image(systemName: message.icon)
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(message.tint)
+                .padding(.trailing, 8)
             Text(message.text)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)
@@ -166,24 +168,30 @@ struct ToastView: View {
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .glyphShadow()
-            if let title = message.actionTitle {
-                Button(action: onAction) {
-                    Text(title)
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(Theme.accent)
-                        .padding(.leading, 6)
-                        .frame(minWidth: 44, minHeight: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+            // Always in the hierarchy, only collapsed when there is no action: a button inserted
+            // with `if` while the ⋯ menu was still closing wasn't hit-testable yet, so the tap
+            // fell through to the camera view.
+            Button(action: onAction) {
+                Text(message.actionTitle ?? "")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Theme.accent)
+                    .padding(.leading, hasAction ? 14 : 0)
+                    .padding(.trailing, hasAction ? 4 : 0)
+                    .frame(minHeight: hasAction ? 44 : 0)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .frame(width: hasAction ? nil : 0)
+            .opacity(hasAction ? 1 : 0)
+            .allowsHitTesting(hasAction)
+            .accessibilityHidden(!hasAction)
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 6)
         .frame(minHeight: 42)
         // A capsule for one line; two lines keep the same corner radius
         .glassSurface(RoundedRectangle(cornerRadius: 21, style: .continuous), tint: Theme.controlTint)
-        .accessibilityElement(children: message.actionTitle == nil ? .combine : .contain)
+        .accessibilityElement(children: hasAction ? .contain : .combine)
     }
 }
 
