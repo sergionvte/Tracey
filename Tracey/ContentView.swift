@@ -15,6 +15,10 @@ struct ContentView: View {
     @State private var lastToast: ToastMessage? = nil
     /// Where the toast is on screen (global), so the camera view ignores taps on an action toast
     @State private var toastFrame: CGRect = .zero
+    /// The camera-access banner was dismissed (for this session)
+    @State private var isCameraBannerDismissed = false
+    /// A reference was picked in the Library; confirm once the sheet has closed
+    @State private var pendingReferenceLoadedToast = false
 
     // Snap to center configuration
     private let snapThreshold: CGFloat = 30 // Distance in points to activate snap
@@ -89,14 +93,34 @@ struct ContentView: View {
                         // Hidden in place until there is an image: the welcome card is the only
                         // call to action
                         let hasImage = viewModel.overlayImage != nil
-                        CaptureModeSwitch(
-                            mode: viewModel.captureMode,
-                            isLocked: viewModel.isPropertiesLocked,
-                            onSelect: selectCaptureMode
-                        )
-                        .opacity(hasImage ? 1 : 0)
-                        .allowsHitTesting(hasImage)
-                        .accessibilityHidden(!hasImage)
+                        VStack(alignment: .leading, spacing: 10) {
+                            CaptureModeSwitch(
+                                mode: viewModel.captureMode,
+                                isLocked: viewModel.isPropertiesLocked,
+                                onSelect: selectCaptureMode
+                            )
+                            .opacity(hasImage ? 1 : 0)
+                            .allowsHitTesting(hasImage)
+                            .accessibilityHidden(!hasImage)
+
+                            // Camera access denied: a compact banner (fades in place) instead of a
+                            // card over the middle of the image
+                            let showsCameraBanner = viewModel.isCameraAccessDenied && hasImage && !isCameraBannerDismissed
+                            CameraAccessBanner(
+                                onOpenSettings: {
+                                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                                        UIApplication.shared.open(url)
+                                    }
+                                },
+                                onDismiss: {
+                                    withAnimation(Theme.spring) { isCameraBannerDismissed = true }
+                                }
+                            )
+                            .opacity(showsCameraBanner ? 1 : 0)
+                            .offset(y: showsCameraBanner ? 0 : -6)
+                            .allowsHitTesting(showsCameraBanner)
+                            .accessibilityHidden(!showsCameraBanner)
+                        }
                         Spacer(minLength: 12)
                         ToolColumn(
                             isTorchOn: viewModel.isTorchOn,
@@ -206,20 +230,6 @@ struct ContentView: View {
                 .scaleEffect(showsWelcome ? 1 : 0.96)
                 .allowsHitTesting(showsWelcome)
                 .accessibilityHidden(!showsWelcome)
-
-                // Camera access denied: explain and link to Settings (same in-place fading)
-                let showsCameraAccess = viewModel.isCameraAccessDenied && viewModel.overlayImage != nil
-                    && showingControls && !showingImageControls
-                CameraAccessCard(onOpenSettings: {
-                    if let url = URL(string: UIApplication.openSettingsURLString) {
-                        UIApplication.shared.open(url)
-                    }
-                })
-                .padding(.horizontal, 32)
-                .opacity(showsCameraAccess ? 1 : 0)
-                .scaleEffect(showsCameraAccess ? 1 : 0.96)
-                .allowsHitTesting(showsCameraAccess)
-                .accessibilityHidden(!showsCameraAccess)
             }
             .animation(Theme.spring, value: showingImageControls)
             .animation(Theme.spring, value: toast)
@@ -262,11 +272,14 @@ struct ContentView: View {
         }
         .sheet(isPresented: $viewModel.showingSavedImages, onDismiss: {
             showingImageControls = false // Ensure the main menu can be opened
+            // Confirm only once the sheet is gone, so the toast isn't animating under it
+            if pendingReferenceLoadedToast {
+                pendingReferenceLoadedToast = false
+                showToast(ToastMessage(icon: "checkmark.circle.fill", text: "Reference loaded", tint: Theme.accent))
+            }
         }) {
             SavedImagesView(viewModel: viewModel, storage: viewModel.imageStorage, isPresented: $viewModel.showingSavedImages,
-                            onLoaded: {
-                                showToast(ToastMessage(icon: "checkmark.circle.fill", text: "Reference loaded", tint: Theme.accent))
-                            })
+                            onLoaded: { pendingReferenceLoadedToast = true })
         }
     }
 

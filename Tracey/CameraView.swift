@@ -488,8 +488,12 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
     private let angleSnapDegrees: Double = 8
     /// Tick when the drag enters a center snap zone or the rotation lands on 0/90/180/270
     private let snapFeedback = UISelectionFeedbackGenerator()
-    /// Whether the image center is within the snap distance of the screen center, per axis
-    private var inSnapZone = (x: false, y: false)
+    /// Once snapped, an axis stays at 0 until the drag goes this far from center (hysteresis)
+    private let centerReleaseDistance: CGFloat = 40
+    /// Where the finger would have put the image without the magnetic center
+    private var rawDragOffset: CGSize = .zero
+    /// Axes currently held at the center by the magnet
+    private var snapLatched = (x: false, y: false)
 
     /// True when the gesture's touches (or their center) are on the drawn image. A small margin
     /// makes small images easier to grab.
@@ -520,7 +524,8 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
         guard editState == nil, let state = overlayState else { return }
         editState = (state.offset, state.scale, state.rotation)
         panMovedImage = false
-        inSnapZone = (abs(state.offset.width) <= centerSnapDistance, abs(state.offset.height) <= centerSnapDistance)
+        rawDragOffset = state.offset
+        snapLatched = (abs(state.offset.width) < 0.5, abs(state.offset.height) < 0.5)
         snapFeedback.prepare()
     }
 
@@ -532,18 +537,32 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
             let translation = gesture.translation(in: self)
             gesture.setTranslation(.zero, in: self)
             if translation != .zero {
-                edit.offset.width += translation.x
-                edit.offset.height += translation.y
-                editState = edit
-                panMovedImage = true
-                // Same zones as the amber guides: tick when either guide appears
-                let zone = (x: abs(edit.offset.width) <= centerSnapDistance,
-                            y: abs(edit.offset.height) <= centerSnapDistance)
-                if (zone.x && !inSnapZone.x) || (zone.y && !inSnapZone.y) {
+                rawDragOffset.width += translation.x
+                rawDragOffset.height += translation.y
+                // Magnetic center: within the snap distance an axis is held exactly at 0 (so the
+                // amber guide only shows when the image really is centered) until the drag pulls
+                // it beyond the release distance
+                var snapped = false
+                if snapLatched.x {
+                    if abs(rawDragOffset.width) > centerReleaseDistance { snapLatched.x = false }
+                } else if abs(rawDragOffset.width) <= centerSnapDistance {
+                    snapLatched.x = true
+                    snapped = true
+                }
+                if snapLatched.y {
+                    if abs(rawDragOffset.height) > centerReleaseDistance { snapLatched.y = false }
+                } else if abs(rawDragOffset.height) <= centerSnapDistance {
+                    snapLatched.y = true
+                    snapped = true
+                }
+                if snapped {
                     snapFeedback.selectionChanged()
                     snapFeedback.prepare()
                 }
-                inSnapZone = zone
+                edit.offset = CGSize(width: snapLatched.x ? 0 : rawDragOffset.width,
+                                     height: snapLatched.y ? 0 : rawDragOffset.height)
+                editState = edit
+                panMovedImage = true
                 publishImageEdit(isDragging: gesture.state != .ended)
             }
         }

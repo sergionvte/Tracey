@@ -256,15 +256,22 @@ struct LockButton: View {
             .glassSurface(Circle(), tint: isLocked ? Theme.accent : Theme.controlTint, interactive: true)
             .overlay {
                 // Hold-to-unlock progress ring, just outside the button
+                // The pressed glass turns almost white, so the ring is amber on a dark edge
                 ZStack {
                     Circle()
-                        .stroke(Color.black.opacity(0.35), lineWidth: 4)
-                    Circle()
-                        .trim(from: 0, to: holdProgress)
-                        .stroke(Color.white, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
+                        .stroke(Color.black.opacity(0.3), lineWidth: 6)
+                    Group {
+                        Circle()
+                            .trim(from: 0, to: holdProgress)
+                            .stroke(Color.black.opacity(0.6), style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                        Circle()
+                            .trim(from: 0, to: holdProgress)
+                            .stroke(Theme.accent, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+                    }
+                    .rotationEffect(.degrees(-90))
                 }
-                .padding(-6)
+                // Outside the pressed glass, which grows a little while held
+                .padding(-11)
                 .opacity(holdProgress > 0 ? 1 : 0)
                 .allowsHitTesting(false)
             }
@@ -506,49 +513,52 @@ struct EmptyStateCard: View {
 
 // MARK: - Camera access
 
-/// Shown when the camera should run but access is denied or restricted.
-struct CameraAccessCard: View {
+/// Compact banner under the top bar when the camera should run but access is denied or
+/// restricted. Small on purpose: it must not cover the image or block gestures.
+struct CameraAccessBanner: View {
     let onOpenSettings: () -> Void
+    let onDismiss: () -> Void
 
     var body: some View {
-        VStack(spacing: 18) {
-            ZStack {
-                Circle()
-                    .fill(Theme.accent.opacity(0.18))
-                    .frame(width: 64, height: 64)
-                Image(systemName: "video.slash.fill")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(Theme.accent)
-            }
-            .accessibilityHidden(true)
-
-            VStack(spacing: 6) {
-                Text("Camera access is off")
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(.white)
-                Text("Tracey needs the camera to show your paper.")
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.75))
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
+        HStack(spacing: 8) {
+            Image(systemName: "video.slash.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.accent)
+                .glyphShadow()
+                .accessibilityHidden(true)
+            Text("Camera access is off")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .glyphShadow()
             Button(action: onOpenSettings) {
-                Label("Open Settings", systemImage: "gearshape.fill")
-                    .font(.body.weight(.semibold))
+                Text("Settings")
+                    .font(.footnote.weight(.bold))
                     .foregroundStyle(.black)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 50)
+                    .padding(.horizontal, 12)
+                    .frame(height: 30)
                     .background(Theme.accent, in: Capsule())
-                    .contentShape(Capsule())
+                    .frame(height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Open Settings to turn on camera access")
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.8))
+                    .glyphShadow()
+                    .frame(width: 32, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss")
         }
-        .padding(24)
-        .frame(maxWidth: 360)
-        .glassSurface(RoundedRectangle(cornerRadius: 34, style: .continuous), tint: .black.opacity(0.35))
-        // Taps on the card must not hide the controls
-        .contentShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
-        .onTapGesture {}
+        .padding(.leading, 14)
+        .padding(.trailing, 4)
+        .frame(height: 44)
+        .glassSurface(Capsule(), tint: Theme.controlTint)
+        .accessibilityElement(children: .contain)
     }
 }
