@@ -283,7 +283,7 @@ struct ContentView: View {
     /// A plain tap on the lock while locked: explain how to unlock.
     private func holdToUnlockHint() {
         Haptics.light()
-        showToast(ToastMessage(icon: "hand.tap.fill", text: "Hold to unlock", tint: Theme.accent, duration: 3.5))
+        showToast(ToastMessage(icon: "lock.fill", text: "Hold to unlock", tint: Theme.accent, duration: 3.5))
     }
 
     private func changeImageWhileLocked() {

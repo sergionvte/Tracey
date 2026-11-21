@@ -103,7 +103,8 @@ struct ToolColumn: View {
             VStack(spacing: 10) {
                 // The camera only runs once there is an image, so camera tools appear with it
                 if hasImage {
-                    GlassIconButton(systemName: "viewfinder", label: "Focus center", action: onFocus)
+                    // Focus-point brackets: reads as camera focus (Center Image keeps `scope`)
+                    GlassIconButton(systemName: "dot.viewfinder", label: "Focus center", action: onFocus)
                         .transition(.scale.combined(with: .opacity))
 
                     GlassIconButton(
@@ -127,7 +128,7 @@ struct ToolColumn: View {
 
                 if showsResetView {
                     GlassIconButton(
-                        systemName: "arrow.down.right.and.arrow.up.left",
+                        systemName: "arrow.counterclockwise",
                         label: "Reset view",
                         isActive: true,
                         action: onResetView
@@ -169,7 +170,7 @@ struct BottomDock: View {
                 // Changing the image while locked would throw the alignment away
                 DockIconButton(systemName: "photo.badge.plus", label: "Choose image",
                                isEnabled: !isLocked, onDisabledTap: onChangeImageWhileLocked, action: onImport)
-                DockIconButton(systemName: "square.grid.2x2", label: "Library",
+                DockIconButton(systemName: "photo.stack", label: "Library",
                                isEnabled: !isLocked, onDisabledTap: onChangeImageWhileLocked, action: onLibrary)
             }
             .padding(5)
@@ -484,7 +485,7 @@ struct EmptyStateCard: View {
                 .buttonStyle(.plain)
 
                 Button(action: onLibrary) {
-                    Label("Open Library", systemImage: "square.grid.2x2")
+                    Label("Open Library", systemImage: "photo.stack")
                         .font(.body.weight(.semibold))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
