@@ -19,6 +19,11 @@ struct ContentView: View {
     @State private var isCameraBannerDismissed = false
     /// A reference was picked in the Library; confirm once the sheet has closed
     @State private var pendingReferenceLoadedToast = false
+    /// First-launch tour (also reopened from the welcome card and the ⋯ menu). Read once at
+    /// launch so the first frame already shows the tour, not the welcome card.
+    @State private var isTourPresented = !UserDefaults.standard.bool(forKey: ContentView.hasSeenTourKey)
+    @State private var tourPage = 0
+    private static let hasSeenTourKey = "hasSeenTour"
 
     // Snap to center configuration
     private let snapThreshold: CGFloat = 30 // Distance in points to activate snap
@@ -206,6 +211,7 @@ struct ContentView: View {
                                 Haptics.light()
                             },
                             onSave: saveConfiguration,
+                            onShowTour: openTour,
                             onRemove: removeImage,
                             onLockedTap: lockedWarning
                         )
@@ -215,6 +221,7 @@ struct ContentView: View {
                 }
                 .opacity(showingControls ? 1 : 0)
                 .allowsHitTesting(showingControls)
+                .accessibilityHidden(isTourPresented)
 
                 // Welcome card until there is a reference image.
                 // Always in the hierarchy (never inserted/removed): if it were removed with a
@@ -222,17 +229,38 @@ struct ContentView: View {
                 // the invisible card stuck in the middle swallowing touches, so the new image
                 // couldn't be dragged until some other state change. Driving visibility and
                 // hit-testing from state makes it stop catching touches immediately.
-                let showsWelcome = viewModel.overlayImage == nil && showingControls
+                let showsWelcome = viewModel.overlayImage == nil && showingControls && !isTourPresented
                 EmptyStateCard(
                     onImport: { showingImagePicker = true },
-                    onLibrary: { viewModel.showingSavedImages = true }
+                    onLibrary: { viewModel.showingSavedImages = true },
+                    onShowTour: openTour
                 )
                 .padding(.horizontal, 32)
                 .opacity(showsWelcome ? 1 : 0)
                 .scaleEffect(showsWelcome ? 1 : 0.96)
                 .allowsHitTesting(showsWelcome)
                 .accessibilityHidden(!showsWelcome)
+
+                // Tour over an image: a scrim that absorbs taps so nothing underneath can be hit
+                // (camera and lock state stay as they are). Kept in place and faded.
+                let showsTourScrim = isTourPresented && viewModel.overlayImage != nil
+                Color.black.opacity(0.55)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture {}
+                    .opacity(showsTourScrim ? 1 : 0)
+                    .allowsHitTesting(showsTourScrim)
+                    .accessibilityHidden(true)
+
+                // Same spot and style as the welcome card; crossfades with it
+                TourCard(page: $tourPage, onFinish: finishTour)
+                    .padding(.horizontal, 32)
+                    .opacity(isTourPresented ? 1 : 0)
+                    .scaleEffect(isTourPresented ? 1 : 0.96)
+                    .allowsHitTesting(isTourPresented)
+                    .accessibilityHidden(!isTourPresented)
             }
+            .animation(Theme.spring, value: isTourPresented)
             .animation(Theme.spring, value: showingImageControls)
             .animation(Theme.spring, value: toast)
             .animation(.easeInOut(duration: 0.25), value: showingControls)
@@ -307,6 +335,17 @@ struct ContentView: View {
             showToast(ToastMessage(icon: "hand.draw.fill", text: "Drag, pinch & rotate to place it · then tap Lock",
                                    tint: Theme.accent, duration: 3.5))
         }
+    }
+
+    private func openTour() {
+        tourPage = 0
+        withAnimation(Theme.spring) { isTourPresented = true }
+    }
+
+    /// Skip or Get Started. The flag is only set here, so quitting mid-tour shows it again.
+    private func finishTour() {
+        UserDefaults.standard.set(true, forKey: Self.hasSeenTourKey)
+        withAnimation(Theme.spring) { isTourPresented = false }
     }
 
     private func toggleControls() {

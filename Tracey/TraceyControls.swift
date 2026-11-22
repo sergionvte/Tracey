@@ -158,6 +158,7 @@ struct BottomDock: View {
     let onAdjust: () -> Void
     let onCenter: () -> Void
     let onSave: () -> Void
+    let onShowTour: () -> Void
     let onRemove: () -> Void
     let onLockedTap: () -> Void
 
@@ -218,6 +219,7 @@ struct BottomDock: View {
             Button("Center Image", systemImage: "scope", action: onCenter)
                 .disabled(isLocked)
             Button("Save to Library", systemImage: "square.and.arrow.down", action: onSave)
+            Button("How to Use Tracey", systemImage: "questionmark.circle", action: onShowTour)
             Divider()
             Button("Remove Image", systemImage: "trash", role: .destructive, action: onRemove)
                 .disabled(isLocked)
@@ -607,6 +609,7 @@ struct IdleBackground: View {
 struct EmptyStateCard: View {
     let onImport: () -> Void
     let onLibrary: () -> Void
+    let onShowTour: () -> Void
 
     var body: some View {
         VStack(spacing: 20) {
@@ -652,6 +655,16 @@ struct EmptyStateCard: View {
                 }
                 .buttonStyle(.plain)
                 .glassSurface(Capsule(), interactive: true)
+
+                Button(action: onShowTour) {
+                    Text("How Tracey works")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.8))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(24)
