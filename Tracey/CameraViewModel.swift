@@ -16,7 +16,12 @@ class CameraViewModel: ObservableObject {
     // Weak reference to the camera view to drive zoom / capture mode
     weak var cameraUIViewRef: CameraUIView?
 
-    @Published var overlayImage: UIImage? = nil
+    /// The reference as picked/loaded. Never filtered: it's what gets saved, undone and stored.
+    @Published var overlayImage: UIImage? = nil {
+        didSet {
+            if overlayImage !== oldValue { overlayImageChanged() }
+        }
+    }
     @Published var imageOpacity: Double = 0.6 {
         didSet {
             // Validar que el valor sea finito y esté en el rango correcto
@@ -69,6 +74,103 @@ class CameraViewModel: ObservableObject {
 
     let imageStorage = ImageStorageManager()
 
+    // MARK: - Filters
+
+    /// Filter applied to what is drawn over the camera
+    @Published private(set) var referenceFilter: ReferenceFilter = .original
+    /// What is drawn: `overlayImage` with `referenceFilter` applied (same point size)
+    @Published private(set) var displayImage: UIImage?
+    /// Small previews of the current reference with each filter (Adjust panel tiles)
+    @Published private(set) var filterThumbnails: [ReferenceFilter: UIImage] = [:]
+    /// Fires when a filter couldn't be applied (it falls back to Original)
+    let filterFailed = PassthroughSubject<Void, Never>()
+
+    private var filteredCache: [ReferenceFilter: UIImage] = [:]
+    private var filterGeneration = 0
+    private let filterQueue = DispatchQueue(label: "tracey.filters", qos: .userInitiated)
+    private let thumbnailQueue = DispatchQueue(label: "tracey.filters.thumbnails", qos: .utility)
+
+    /// Picks a filter. The overlay switches once the filtered image is ready; until then the
+    /// previous one stays on screen (no flash).
+    func selectFilter(_ filter: ReferenceFilter) {
+        guard filter != referenceFilter else { return }
+        referenceFilter = filter
+        updateDisplayImage(keepPrevious: true)
+    }
+
+    /// Sets the filter for an image that is about to be shown (call before setting overlayImage).
+    private func setFilterForNewImage(_ filter: ReferenceFilter) {
+        referenceFilter = filter
+    }
+
+    private func overlayImageChanged() {
+        filteredCache = [:]
+        filterThumbnails = [:]
+        // A different image: don't keep showing the previous one while the filter renders
+        updateDisplayImage(keepPrevious: false)
+        generateFilterThumbnails()
+    }
+
+    private func updateDisplayImage(keepPrevious: Bool) {
+        filterGeneration += 1
+        guard let source = overlayImage else {
+            displayImage = nil
+            return
+        }
+        let filter = referenceFilter
+        if filter == .original {
+            displayImage = source
+            return
+        }
+        if let cached = filteredCache[filter] {
+            displayImage = cached
+            return
+        }
+        if !keepPrevious { displayImage = nil }
+        let generation = filterGeneration
+        filterQueue.async { [weak self] in
+            // Long side ≤ 2048 px: plenty for an overlay, and quick to filter
+            let result = ReferenceFilterRenderer.shared.render(source, filter: filter, maxLongSide: 2048)
+            DispatchQueue.main.async {
+                guard let self, self.overlayImage === source else { return }
+                if let result {
+                    self.filteredCache[filter] = result
+                    if generation == self.filterGeneration { self.displayImage = result }
+                } else if generation == self.filterGeneration {
+                    self.referenceFilter = .original
+                    self.displayImage = source
+                    self.filterFailed.send()
+                }
+            }
+        }
+    }
+
+    private func generateFilterThumbnails() {
+        guard let source = overlayImage else { return }
+        thumbnailQueue.async { [weak self] in
+            let renderer = ReferenceFilterRenderer.shared
+            // 120 px previews, filtered from one small copy
+            guard let small = renderer.render(source, filter: .original, maxLongSide: 120) else { return }
+            for filter in ReferenceFilter.allCases {
+                let thumbnail: UIImage?
+                switch filter {
+                case .original:
+                    thumbnail = small
+                case .outline:
+                    // Edges found at 120 px turn into a solid blob: trace at 480 px, then shrink
+                    thumbnail = renderer.render(source, filter: .outline, maxLongSide: 480)
+                        .flatMap { renderer.render($0, filter: .original, maxLongSide: 120) }
+                default:
+                    thumbnail = renderer.render(small, filter: filter, maxLongSide: 120)
+                }
+                DispatchQueue.main.async {
+                    guard let self, self.overlayImage === source else { return }
+                    self.filterThumbnails[filter] = thumbnail ?? small
+                }
+            }
+        }
+    }
+
     func resetImageTransforms() {
         withAnimation(.easeInOut(duration: 0.3)) {
             imageScale = 1.0
@@ -88,6 +190,7 @@ class CameraViewModel: ObservableObject {
         let isFlipped: Bool
         let loadedImageName: String?
         let cameraZoom: CGFloat
+        let filter: ReferenceFilter
     }
 
     /// Removes the reference and returns what is needed to undo it.
@@ -102,12 +205,14 @@ class CameraViewModel: ObservableObject {
                 offset: imageOffset,
                 isFlipped: isFlipped,
                 loadedImageName: imageStorage.loadedImageName,
-                cameraZoom: cameraUIViewRef?.getCurrentZoomFactor() ?? 1.0
+                cameraZoom: cameraUIViewRef?.getCurrentZoomFactor() ?? 1.0,
+                filter: referenceFilter
             )
         }
         withAnimation(.easeInOut(duration: 0.2)) {
             overlayImage = nil
         }
+        setFilterForNewImage(.original)
         imageStorage.loadedImageName = nil // Limpiar referencia al nombre de imagen cargada
         isFlipped = false // Reiniciar flip horizontal al borrar
         if isTorchOn { toggleTorch() } // the camera turns off with no image, so does the light
@@ -131,6 +236,7 @@ class CameraViewModel: ObservableObject {
             imageRotation = removed.rotation
             imageOffset = removed.offset
             isFlipped = removed.isFlipped
+            setFilterForNewImage(removed.filter)
         }
         withAnimation(.easeInOut(duration: 0.2)) {
             overlayImage = removed.image
@@ -141,6 +247,8 @@ class CameraViewModel: ObservableObject {
 
     func loadConfiguration(_ configuration: SavedImageConfiguration) {
         if let image = imageStorage.loadImage(named: configuration.imageName) {
+            // Older saves have no filter: they load as Original
+            setFilterForNewImage(configuration.filter.flatMap(ReferenceFilter.init(rawValue:)) ?? .original)
             overlayImage = image
             imageStorage.loadedImageName = configuration.imageName // Guardar el nombre de la imagen cargada
 
@@ -253,6 +361,7 @@ class CameraViewModel: ObservableObject {
                     imageRotation = 0.0
                     imageOpacity = 0.6
                     imageOffset = .zero
+                    setFilterForNewImage(.original) // a fresh image starts unfiltered
                     overlayImage = newValue
                 }
                 imageStorage.loadedImageName = nil
@@ -288,6 +397,7 @@ class CameraViewModel: ObservableObject {
             isFlipped: safeIsFlipped,
             cameraZoom: cameraZoom,
             captureMode: captureMode,
+            filter: referenceFilter.rawValue,
             overwriteImageName: prevLoadedName
         )
 

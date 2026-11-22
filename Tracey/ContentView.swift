@@ -52,7 +52,8 @@ struct ContentView: View {
                     isZoomEnabled: !viewModel.isPropertiesLocked,
                     isViewportEnabled: viewModel.isPropertiesLocked,
                     overlay: OverlayRenderState(
-                        image: viewModel.overlayImage,
+                        // The filtered version is drawn; the original stays in overlayImage
+                        image: viewModel.displayImage,
                         opacity: viewModel.imageOpacity,
                         scale: viewModel.imageScale,
                         rotation: viewModel.imageRotation,
@@ -266,6 +267,10 @@ struct ContentView: View {
             showPlacementHintIfNeeded()
         }
         .onChange(of: viewModel.isCameraAuthorized) { _, _ in showPlacementHintIfNeeded() }
+        .onReceive(viewModel.filterFailed) { _ in
+            Haptics.warning()
+            showToast(ToastMessage(icon: "exclamationmark.triangle.fill", text: "Couldn't apply filter", tint: Theme.danger))
+        }
         .onChange(of: scenePhase) { _, _ in showPlacementHintIfNeeded() }
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(selectedImage: $viewModel.selectedImageFromGallery) // Use the property that clears loadedImageName

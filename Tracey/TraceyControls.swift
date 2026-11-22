@@ -339,6 +339,16 @@ struct AdjustPanel: View {
                     .accessibilityHidden(!isLocked)
             }
 
+            // Filters never change size or position, so they stay available while locked
+            FilterPicker(
+                selected: viewModel.referenceFilter,
+                thumbnails: viewModel.filterThumbnails,
+                onSelect: { filter in
+                    Haptics.light()
+                    viewModel.selectFilter(filter)
+                }
+            )
+
             AdjustRow(
                 icon: "circle.lefthalf.filled",
                 title: "Opacity",
@@ -385,6 +395,88 @@ struct AdjustPanel: View {
         // Taps on the panel background must not hide the controls
         .contentShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
         .onTapGesture {}
+    }
+}
+
+/// Four tiles with a live preview of the reference under each filter.
+private struct FilterPicker: View {
+    let selected: ReferenceFilter
+    let thumbnails: [ReferenceFilter: UIImage]
+    let onSelect: (ReferenceFilter) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Image(systemName: "camera.filters")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .frame(width: 20)
+                Text("Filter")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.white)
+            }
+            .accessibilityElement(children: .combine)
+
+            HStack(spacing: 8) {
+                ForEach(ReferenceFilter.allCases) { filter in
+                    FilterTile(
+                        filter: filter,
+                        thumbnail: thumbnails[filter],
+                        isSelected: filter == selected,
+                        action: { onSelect(filter) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+private struct FilterTile: View {
+    let filter: ReferenceFilter
+    let thumbnail: UIImage?
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                ZStack {
+                    // Paper-like backdrop: the Outline preview is lines on transparent
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.white.opacity(0.85))
+                    if let thumbnail {
+                        Image(uiImage: thumbnail)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 44, height: 44)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    } else {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(.black.opacity(0.5))
+                    }
+                }
+                .frame(width: 44, height: 44)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Theme.accent, lineWidth: 2)
+                        .padding(-2)
+                        .opacity(isSelected ? 1 : 0)
+                }
+
+                Text(filter.label)
+                    .font(.caption2.weight(isSelected ? .bold : .medium))
+                    .foregroundStyle(isSelected ? Theme.accent : Color.white.opacity(0.8))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 64)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(filter.accessibilityName)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

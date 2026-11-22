@@ -116,7 +116,15 @@ struct SavedReferenceCard: View {
         .accessibilityAddTraits(.isButton)
         .task(id: configuration.id) {
             guard thumbnail == nil, let full = storage.loadImage(named: configuration.imageName) else { return }
-            thumbnail = await full.byPreparingThumbnail(ofSize: CGSize(width: 480, height: 480)) ?? full
+            let small = await full.byPreparingThumbnail(ofSize: CGSize(width: 480, height: 480)) ?? full
+            // Show the reference the way it was saved: with its filter applied
+            if let filter = configuration.filter.flatMap(ReferenceFilter.init(rawValue:)), filter != .original {
+                thumbnail = await Task.detached(priority: .utility) {
+                    ReferenceFilterRenderer.shared.render(small, filter: filter, maxLongSide: 480)
+                }.value ?? small
+            } else {
+                thumbnail = small
+            }
         }
     }
 

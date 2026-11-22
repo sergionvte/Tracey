@@ -21,8 +21,10 @@ struct SavedImageConfiguration: Codable, Identifiable {
     let dateCreated: Date
     let cameraZoom: CGFloat // Nuevo campo para el zoom de la cámara
     let captureMode: CameraCaptureMode? // Optional so configurations saved before this field still decode
+    /// ReferenceFilter raw value (nil in older saves = Original)
+    let filter: String?
 
-    init(imageName: String, opacity: Double, scale: Double, rotation: Double, offsetX: Double = 0, offsetY: Double = 0, isFlipped: Bool = false, cameraZoom: CGFloat = 1.0, captureMode: CameraCaptureMode? = nil) {
+    init(imageName: String, opacity: Double, scale: Double, rotation: Double, offsetX: Double = 0, offsetY: Double = 0, isFlipped: Bool = false, cameraZoom: CGFloat = 1.0, captureMode: CameraCaptureMode? = nil, filter: String? = nil) {
         self.id = UUID()
         self.imageName = imageName
         self.opacity = opacity
@@ -34,10 +36,11 @@ struct SavedImageConfiguration: Codable, Identifiable {
         self.dateCreated = Date()
         self.cameraZoom = cameraZoom
         self.captureMode = captureMode
+        self.filter = filter
     }
 
     // Nuevo init para sobrescribir manteniendo id y fecha
-    init(id: UUID, imageName: String, opacity: Double, scale: Double, rotation: Double, offsetX: Double, offsetY: Double, isFlipped: Bool, dateCreated: Date, cameraZoom: CGFloat, captureMode: CameraCaptureMode?) {
+    init(id: UUID, imageName: String, opacity: Double, scale: Double, rotation: Double, offsetX: Double, offsetY: Double, isFlipped: Bool, dateCreated: Date, cameraZoom: CGFloat, captureMode: CameraCaptureMode?, filter: String?) {
         self.id = id
         self.imageName = imageName
         self.opacity = opacity
@@ -49,5 +52,6 @@ struct SavedImageConfiguration: Codable, Identifiable {
         self.dateCreated = dateCreated
         self.cameraZoom = cameraZoom
         self.captureMode = captureMode
+        self.filter = filter
     }
 }
