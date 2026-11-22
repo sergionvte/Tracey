@@ -82,6 +82,9 @@ class CameraViewModel: ObservableObject {
     @Published private(set) var displayImage: UIImage?
     /// Small previews of the current reference with each filter (Adjust panel tiles)
     @Published private(set) var filterThumbnails: [ReferenceFilter: UIImage] = [:]
+    /// Grid over the reference: 0 = off, 3 or 4 divisions per side
+    @Published var gridDivisions: Int = 0
+
     /// Fires when a filter couldn't be applied (it falls back to Original)
     let filterFailed = PassthroughSubject<Void, Never>()
 
@@ -191,6 +194,7 @@ class CameraViewModel: ObservableObject {
         let loadedImageName: String?
         let cameraZoom: CGFloat
         let filter: ReferenceFilter
+        let gridDivisions: Int
     }
 
     /// Removes the reference and returns what is needed to undo it.
@@ -206,13 +210,15 @@ class CameraViewModel: ObservableObject {
                 isFlipped: isFlipped,
                 loadedImageName: imageStorage.loadedImageName,
                 cameraZoom: cameraUIViewRef?.getCurrentZoomFactor() ?? 1.0,
-                filter: referenceFilter
+                filter: referenceFilter,
+                gridDivisions: gridDivisions
             )
         }
         withAnimation(.easeInOut(duration: 0.2)) {
             overlayImage = nil
         }
         setFilterForNewImage(.original)
+        gridDivisions = 0
         imageStorage.loadedImageName = nil // Limpiar referencia al nombre de imagen cargada
         isFlipped = false // Reiniciar flip horizontal al borrar
         if isTorchOn { toggleTorch() } // the camera turns off with no image, so does the light
@@ -237,6 +243,7 @@ class CameraViewModel: ObservableObject {
             imageOffset = removed.offset
             isFlipped = removed.isFlipped
             setFilterForNewImage(removed.filter)
+            gridDivisions = removed.gridDivisions
         }
         withAnimation(.easeInOut(duration: 0.2)) {
             overlayImage = removed.image
@@ -249,6 +256,8 @@ class CameraViewModel: ObservableObject {
         if let image = imageStorage.loadImage(named: configuration.imageName) {
             // Older saves have no filter: they load as Original
             setFilterForNewImage(configuration.filter.flatMap(ReferenceFilter.init(rawValue:)) ?? .original)
+            let savedGrid = configuration.gridDivisions ?? 0
+            gridDivisions = [3, 4].contains(savedGrid) ? savedGrid : 0
             overlayImage = image
             imageStorage.loadedImageName = configuration.imageName // Guardar el nombre de la imagen cargada
 
@@ -362,6 +371,7 @@ class CameraViewModel: ObservableObject {
                     imageOpacity = 0.6
                     imageOffset = .zero
                     setFilterForNewImage(.original) // a fresh image starts unfiltered
+                    gridDivisions = 0
                     overlayImage = newValue
                 }
                 imageStorage.loadedImageName = nil
@@ -398,6 +408,7 @@ class CameraViewModel: ObservableObject {
             cameraZoom: cameraZoom,
             captureMode: captureMode,
             filter: referenceFilter.rawValue,
+            gridDivisions: gridDivisions,
             overwriteImageName: prevLoadedName
         )
 

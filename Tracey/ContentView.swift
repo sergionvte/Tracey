@@ -58,7 +58,8 @@ struct ContentView: View {
                         scale: viewModel.imageScale,
                         rotation: viewModel.imageRotation,
                         offset: viewModel.imageOffset,
-                        isFlipped: viewModel.isFlipped
+                        isFlipped: viewModel.isFlipped,
+                        gridDivisions: viewModel.gridDivisions
                     ),
                     overlayLayoutRect: CGRect(
                         x: geometry.safeAreaInsets.leading + cameraCenterShift.width,

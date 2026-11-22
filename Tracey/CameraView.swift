@@ -44,6 +44,8 @@ struct OverlayRenderState: Equatable {
     var rotation: Double // degrees, clockwise
     var offset: CGSize
     var isFlipped: Bool
+    /// Grid over the image: 0 = off, otherwise divisions per side (3 or 4)
+    var gridDivisions: Int = 0
 }
 
 /// Live result of the user moving / pinching / rotating the reference image.
@@ -137,6 +139,12 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
     private let contentView = UIView()
     private let overlayImageView = UIImageView()
     private var overlayState: OverlayRenderState?
+    /// Grid attached to the image: same geometry as the image view, but a sibling (not a
+    /// subview) so it doesn't inherit the image's opacity.
+    private let gridView = UIView()
+    private let gridHaloLayer = CAShapeLayer()
+    private let gridLineLayer = CAShapeLayer()
+    private var gridPathKey: (size: CGSize, divisions: Int)?
 
     var overlayLayoutRect: CGRect = .zero {
         didSet {
@@ -184,6 +192,18 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
         overlayImageView.contentMode = .scaleToFill
         overlayImageView.isHidden = true
         contentView.addSubview(overlayImageView)
+
+        // Grid: 1 pt white line on a 2 pt dark halo, so it reads on paper and on dark images
+        gridView.isUserInteractionEnabled = false
+        gridView.isHidden = true
+        for layer in [gridHaloLayer, gridLineLayer] {
+            layer.fillColor = nil
+            layer.lineCap = .square
+            gridView.layer.addSublayer(layer)
+        }
+        gridHaloLayer.strokeColor = UIColor.black.withAlphaComponent(0.35).cgColor
+        gridLineLayer.strokeColor = UIColor.white.withAlphaComponent(0.9).cgColor
+        contentView.addSubview(gridView)
     }
 
     /// All session/device configuration runs serially here, off the main thread.
@@ -340,6 +360,7 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
               image.size.width > 0, image.size.height > 0 else {
             overlayImageView.isHidden = true
             overlayImageView.image = nil
+            gridView.isHidden = true
             return
         }
 
@@ -360,6 +381,45 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
         overlayImageView.transform = CGAffineTransform(scaleX: flipScaleX, y: state.scale)
             .concatenating(CGAffineTransform(rotationAngle: CGFloat(state.rotation) * .pi / 180))
         overlayImageView.alpha = CGFloat(state.opacity)
+        layoutGrid(state)
+    }
+
+    /// Moves, scales, rotates and mirrors with the image (same bounds, center and transform).
+    /// It ignores the image's opacity: a grid alone, with the image at 0%, is a valid use.
+    private func layoutGrid(_ state: OverlayRenderState) {
+        guard state.gridDivisions > 1 else {
+            gridView.isHidden = true
+            return
+        }
+        gridView.isHidden = false
+        gridView.bounds = overlayImageView.bounds
+        gridView.center = overlayImageView.center
+        gridView.transform = overlayImageView.transform
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        let size = gridView.bounds.size
+        if gridPathKey?.size != size || gridPathKey?.divisions != state.gridDivisions {
+            gridPathKey = (size, state.gridDivisions)
+            let path = UIBezierPath(rect: CGRect(origin: .zero, size: size)) // outer border too
+            for index in 1..<state.gridDivisions {
+                let x = size.width * CGFloat(index) / CGFloat(state.gridDivisions)
+                let y = size.height * CGFloat(index) / CGFloat(state.gridDivisions)
+                path.move(to: CGPoint(x: x, y: 0))
+                path.addLine(to: CGPoint(x: x, y: size.height))
+                path.move(to: CGPoint(x: 0, y: y))
+                path.addLine(to: CGPoint(x: size.width, y: y))
+            }
+            for layer in [gridHaloLayer, gridLineLayer] {
+                layer.frame = gridView.bounds
+                layer.path = path.cgPath
+            }
+        }
+        // Constant on screen whatever the image size
+        let scale = max(abs(state.scale), 0.01)
+        gridLineLayer.lineWidth = 1 / scale
+        gridHaloLayer.lineWidth = 2 / scale
+        CATransaction.commit()
     }
 
     // MARK: - Viewport (move / zoom the whole screen while locked)

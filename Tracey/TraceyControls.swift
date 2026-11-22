@@ -385,6 +385,9 @@ struct AdjustPanel: View {
             }
             .disabled(isLocked)
             .opacity(isLocked ? 0.45 : 1)
+
+            // Attached to the image; available while locked
+            GridRow(divisions: $viewModel.gridDivisions)
         }
         .tint(Theme.accent)
         .padding(.horizontal, 20)
@@ -477,6 +480,62 @@ private struct FilterTile: View {
         .buttonStyle(.plain)
         .accessibilityLabel(filter.accessibilityName)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+/// Grid: Off | 3×3 | 4×4. Segments have 44 pt tall hit targets.
+private struct GridRow: View {
+    @Binding var divisions: Int
+    private let options: [(value: Int, label: String, spoken: String)] = [
+        (0, "Off", "Off"), (3, "3×3", "3 by 3"), (4, "4×4", "4 by 4")
+    ]
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "square.grid.3x3")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.7))
+                .frame(width: 20)
+            Text("Grid")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.white)
+            Spacer(minLength: 8)
+            HStack(spacing: 2) {
+                ForEach(options, id: \.value) { option in
+                    let isSelected = option.value == divisions
+                    Button {
+                        guard divisions != option.value else { return }
+                        Haptics.light()
+                        divisions = option.value
+                    } label: {
+                        Text(option.label)
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(isSelected ? Color.black : Color.white.opacity(0.85))
+                            .frame(width: 52, height: 30)
+                            .background {
+                                Capsule().fill(Color.white).opacity(isSelected ? 1 : 0)
+                            }
+                            .frame(height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 3)
+            .background(Capsule().fill(Color.white.opacity(0.12)).frame(height: 36))
+        }
+        .frame(height: 44)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Grid")
+        .accessibilityValue(options.first { $0.value == divisions }?.spoken ?? "Off")
+        .accessibilityAdjustableAction { direction in
+            guard let index = options.firstIndex(where: { $0.value == divisions }) else { return }
+            switch direction {
+            case .increment: divisions = options[min(index + 1, options.count - 1)].value
+            case .decrement: divisions = options[max(index - 1, 0)].value
+            @unknown default: break
+            }
+        }
     }
 }
 
