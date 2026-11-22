@@ -72,6 +72,8 @@ struct CameraView: UIViewRepresentable {
     /// Screen areas (global coordinates) where taps and long presses must be ignored, e.g. a toast
     /// with an Undo button.
     var tapExclusionRects: [CGRect] = []
+    /// The camera session was interrupted (true) or resumed (false)
+    var onSessionInterruption: (Bool) -> Void = { _ in }
     /// A single tap anywhere on the camera view (shows / hides the floating controls).
     var onSingleTap: () -> Void
 
@@ -79,6 +81,7 @@ struct CameraView: UIViewRepresentable {
         let cameraView = CameraUIView()
         cameraView.isZoomEnabled = isZoomEnabled
         cameraView.onSingleTap = onSingleTap
+        cameraView.onSessionInterruptionChanged = onSessionInterruption
         cameraView.onCameraAccessDenied = { [weak viewModel] denied in
             guard let viewModel else { return }
             if viewModel.isCameraAuthorized == denied { viewModel.isCameraAuthorized = !denied }
@@ -120,6 +123,7 @@ struct CameraView: UIViewRepresentable {
     func updateUIView(_ uiView: CameraUIView, context: Context) {
         uiView.isZoomEnabled = isZoomEnabled
         uiView.onSingleTap = onSingleTap
+        uiView.onSessionInterruptionChanged = onSessionInterruption
         uiView.tapExclusionRects = tapExclusionRects
         uiView.isViewportEnabled = isViewportEnabled
         uiView.overlayLayoutRect = overlayLayoutRect
@@ -131,6 +135,13 @@ struct CameraView: UIViewRepresentable {
 
 class CameraUIView: UIView, UIGestureRecognizerDelegate {
     private let captureSession = AVCaptureSession()
+    /// Raw camera frames for the time-lapse. Added once; it only gets a delegate while recording,
+    /// so it costs nothing the rest of the time.
+    private let videoDataOutput = AVCaptureVideoDataOutput()
+    #if DEBUG
+    /// Simulator stand-in for camera frames (no capture device)
+    private var syntheticFrames: SyntheticFrameSource?
+    #endif
     private var previewLayer: AVCaptureVideoPreviewLayer!
     private var captureDevice: AVCaptureDevice?
 
@@ -224,6 +235,54 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
         contentView.layer.insertSublayer(previewLayer, at: 0) // below the overlay image
 
         setupGestures()
+
+        // Phone calls, Control Center camera use, background… pause a time-lapse
+        let center = NotificationCenter.default
+        center.addObserver(forName: AVCaptureSession.wasInterruptedNotification, object: captureSession,
+                           queue: .main) { [weak self] _ in self?.onSessionInterruptionChanged?(true) }
+        center.addObserver(forName: AVCaptureSession.interruptionEndedNotification, object: captureSession,
+                           queue: .main) { [weak self] _ in self?.onSessionInterruptionChanged?(false) }
+    }
+
+    /// Main queue: true when the camera session was interrupted, false when it resumed.
+    var onSessionInterruptionChanged: ((Bool) -> Void)?
+
+    // MARK: - Time-lapse frames
+
+    /// Sends camera frames to `recorder` (on its queue), rotated to `rotationAngle` so the clip
+    /// keeps the interface orientation it started in (90 = portrait).
+    func startFrameDelivery(to recorder: TimelapseRecorder, rotationAngle: CGFloat) {
+        let mode = captureMode
+        sessionQueue.async { [weak self] in
+            guard let self else { return }
+            guard self.captureDevice != nil else {
+                #if DEBUG && targetEnvironment(simulator)
+                // Simulator: no camera, feed synthetic frames sized like the real output
+                let size = mode == .photo ? CGSize(width: 3024, height: 4032) : CGSize(width: 1080, height: 1920)
+                let source = SyntheticFrameSource(recorder: recorder, size: size)
+                source.start()
+                self.syntheticFrames = source
+                #endif
+                return
+            }
+            if let connection = self.videoDataOutput.connection(with: .video),
+               connection.isVideoRotationAngleSupported(rotationAngle) {
+                connection.videoRotationAngle = rotationAngle
+            }
+            self.videoDataOutput.setSampleBufferDelegate(recorder, queue: recorder.queue)
+        }
+    }
+
+    /// Stops sending frames; `completion` runs on the main queue once no more will arrive.
+    func stopFrameDelivery(completion: @escaping () -> Void) {
+        sessionQueue.async { [weak self] in
+            self?.videoDataOutput.setSampleBufferDelegate(nil, queue: nil)
+            #if DEBUG
+            self?.syntheticFrames?.stop()
+            self?.syntheticFrames = nil
+            #endif
+            DispatchQueue.main.async(execute: completion)
+        }
     }
 
     // MARK: - Camera on/off
@@ -309,6 +368,14 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
             return
         }
         applyFormat(for: mode, on: device)
+        // Time-lapse frames (no delegate until recording)
+        videoDataOutput.alwaysDiscardsLateVideoFrames = true
+        if captureSession.canAddOutput(videoDataOutput) {
+            captureSession.addOutput(videoDataOutput)
+            if let connection = videoDataOutput.connection(with: .video), connection.isVideoRotationAngleSupported(90) {
+                connection.videoRotationAngle = 90 // portrait buffers
+            }
+        }
         captureSession.commitConfiguration()
 
         captureDevice = device

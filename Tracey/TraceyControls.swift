@@ -87,6 +87,11 @@ struct CaptureModeSwitch: View {
 // MARK: - Tool column (top right)
 
 struct ToolColumn: View {
+    let timelapsePhase: TimelapseController.Phase
+    /// Camera access is off: recording is impossible
+    let isCameraDenied: Bool
+    let onRecord: () -> Void
+    let onRecordWhileDenied: () -> Void
     let isTorchOn: Bool
     let isFlipped: Bool
     let hasImage: Bool
@@ -103,6 +108,15 @@ struct ToolColumn: View {
             VStack(spacing: 10) {
                 // The camera only runs once there is an image, so camera tools appear with it
                 if hasImage {
+                    // Time-lapse: first item; stays enabled while locked
+                    RecordButton(
+                        phase: timelapsePhase,
+                        isEnabled: !isCameraDenied,
+                        onDisabledTap: onRecordWhileDenied,
+                        action: onRecord
+                    )
+                    .transition(.scale.combined(with: .opacity))
+
                     // Focus-point brackets: reads as camera focus (Center Image keeps `scope`)
                     GlassIconButton(systemName: "dot.viewfinder", label: "Focus center", action: onFocus)
                         .transition(.scale.combined(with: .opacity))
@@ -147,6 +161,8 @@ struct ToolColumn: View {
 struct BottomDock: View {
     let hasImage: Bool
     let isLocked: Bool
+    /// A time-lapse is recording: the image can't be removed (the camera would turn off)
+    let isRecording: Bool
     let isAdjustOpen: Bool
     let onImport: () -> Void
     let onLibrary: () -> Void
@@ -222,7 +238,7 @@ struct BottomDock: View {
             Button("How to Use Tracey", systemImage: "questionmark.circle", action: onShowTour)
             Divider()
             Button("Remove Image", systemImage: "trash", role: .destructive, action: onRemove)
-                .disabled(isLocked)
+                .disabled(isLocked || isRecording)
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 19, weight: .semibold))

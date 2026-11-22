@@ -145,6 +145,8 @@ struct ToastMessage: Equatable {
     /// Optional button in the toast (e.g. "Undo")
     var actionTitle: String? = nil
     var action: (() -> Void)? = nil
+    /// Called if the toast goes away without its action being used (expired or replaced)
+    var onExpire: (() -> Void)? = nil
 
     static func == (lhs: ToastMessage, rhs: ToastMessage) -> Bool { lhs.id == rhs.id }
 }

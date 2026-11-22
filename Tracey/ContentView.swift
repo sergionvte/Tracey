@@ -1,9 +1,12 @@
 // ContentView.swift - Tracing screen: camera + reference overlay with floating Liquid Glass controls
 import SwiftUI
 import UIKit
+import Photos
 
 struct ContentView: View {
     @StateObject private var viewModel = CameraViewModel()
+    @StateObject private var timelapse = TimelapseController()
+    @State private var timelapseAlert: TimelapseAlert?
     @Environment(\.scenePhase) private var scenePhase
     @State private var showingImagePicker = false
     @State private var showingControls = true
@@ -77,6 +80,7 @@ struct ContentView: View {
                     // Belt and braces: never treat a tap on the Undo toast as a screen tap
                     tapExclusionRects: toast?.actionTitle != nil && showingControls
                         ? [toastFrame.insetBy(dx: -8, dy: -8)] : [],
+                    onSessionInterruption: { timelapse.setInterrupted($0) },
                     onSingleTap: toggleControls
                 )
                 .ignoresSafeArea()
@@ -130,6 +134,13 @@ struct ContentView: View {
                         }
                         Spacer(minLength: 12)
                         ToolColumn(
+                            timelapsePhase: timelapse.phase,
+                            isCameraDenied: viewModel.isCameraAccessDenied,
+                            onRecord: recordTapped,
+                            onRecordWhileDenied: {
+                                Haptics.warning()
+                                showToast(ToastMessage(icon: "video.slash.fill", text: "Camera access is off", tint: Theme.accent))
+                            },
                             isTorchOn: viewModel.isTorchOn,
                             isFlipped: viewModel.isFlipped,
                             hasImage: viewModel.overlayImage != nil,
@@ -195,6 +206,7 @@ struct ContentView: View {
                         BottomDock(
                             hasImage: viewModel.overlayImage != nil,
                             isLocked: viewModel.isPropertiesLocked,
+                            isRecording: timelapse.isActive,
                             isAdjustOpen: showingImageControls,
                             onImport: { showingImagePicker = true },
                             onLibrary: { viewModel.showingSavedImages = true },
@@ -222,6 +234,22 @@ struct ContentView: View {
                 .opacity(showingControls ? 1 : 0)
                 .allowsHitTesting(showingControls)
                 .accessibilityHidden(isTourPresented)
+
+                // Time-lapse status. Its own layer so it stays (at 80%) when the controls are
+                // hidden. Second row, left of the tool column: the top row has no room for it
+                // next to the Video/Photo switch (which grows with the lock glyph).
+                let showsPill = timelapse.isActive
+                TimelapsePill(
+                    controller: timelapse,
+                    controlsVisible: showingControls,
+                    onTap: pillTapped
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .padding(.top, 4 + 58)
+                .padding(.trailing, 16 + 48 + 12)
+                .opacity(showsPill ? (showingControls ? 1 : 0.8) : 0)
+                .allowsHitTesting(showsPill)
+                .accessibilityHidden(!showsPill || isTourPresented)
 
                 // Welcome card until there is a reference image.
                 // Always in the hierarchy (never inserted/removed): if it were removed with a
@@ -261,6 +289,7 @@ struct ContentView: View {
                     .accessibilityHidden(!isTourPresented)
             }
             .animation(Theme.spring, value: isTourPresented)
+            .animation(Theme.spring, value: timelapse.phase)
             .animation(Theme.spring, value: showingImageControls)
             .animation(Theme.spring, value: toast)
             .animation(.easeInOut(duration: 0.25), value: showingControls)
@@ -276,6 +305,10 @@ struct ContentView: View {
         .onAppear {
             // Keep the screen active
             UIApplication.shared.isIdleTimerDisabled = true
+            timelapse.onAutoStop = { reason in stopTimelapse(reason) }
+            timelapse.onResumed = {
+                showToast(ToastMessage(icon: "timelapse", text: "Time-lapse resumed"))
+            }
         }
         .onDisappear {
             // Restore normal behavior when the app is closed
@@ -300,7 +333,26 @@ struct ContentView: View {
             Haptics.warning()
             showToast(ToastMessage(icon: "exclamationmark.triangle.fill", text: "Couldn't apply filter", tint: Theme.danger))
         }
-        .onChange(of: scenePhase) { _, _ in showPlacementHintIfNeeded() }
+        .onChange(of: scenePhase) { _, phase in
+            timelapse.setBackgrounded(phase == .background)
+            showPlacementHintIfNeeded()
+        }
+        .onChange(of: timelapse.phase) { _, phase in
+            viewModel.isCaptureModeFrozen = phase != .idle
+        }
+        .alert("Can't save time-lapses", isPresented: alertBinding(.photosDenied)) {
+            Button("Open Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Allow Tracey to add videos to Photos in Settings.")
+        }
+        .alert("Not enough storage", isPresented: alertBinding(.lowStorage)) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Free up at least 1 GB to record a time-lapse.")
+        }
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(selectedImage: $viewModel.selectedImageFromGallery) // Use the property that clears loadedImageName
         }
@@ -395,6 +447,12 @@ struct ContentView: View {
 
     private func selectCaptureMode(_ mode: CameraCaptureMode) {
         guard mode != viewModel.captureMode else { return }
+        // The clip's size is fixed when recording starts
+        guard !timelapse.isActive else {
+            Haptics.warning()
+            showToast(ToastMessage(icon: "timelapse", text: "Stop the time-lapse to change camera mode", tint: Theme.accent))
+            return
+        }
         guard !viewModel.isPropertiesLocked else {
             lockedWarning()
             return
@@ -429,10 +487,129 @@ struct ContentView: View {
     private func removeImage() {
         guard let removed = viewModel.removeOverlayImage() else { return }
         withAnimation(Theme.spring) { showingImageControls = false }
-        showToast(ToastMessage(icon: "trash", text: "Image removed", duration: 8, actionTitle: "Undo") {
+        showToast(ToastMessage(icon: "trash", text: "Image removed", duration: 8, actionTitle: "Undo", action: {
             viewModel.restore(removed)
             Haptics.light()
-        })
+        }))
+    }
+
+    // MARK: - Time-lapse
+
+    enum TimelapseAlert {
+        case photosDenied
+        case lowStorage
+    }
+
+    private func alertBinding(_ alert: TimelapseAlert) -> Binding<Bool> {
+        Binding(get: { timelapseAlert == alert }, set: { if !$0 { timelapseAlert = nil } })
+    }
+
+    private func recordTapped() {
+        switch timelapse.phase {
+        case .idle: startTimelapse()
+        case .recording: stopTimelapse(.user)
+        case .saving: break
+        }
+    }
+
+    /// Tapping the pill: stops with the controls visible; with them hidden it only shows them,
+    /// so a stray touch while drawing can't end the recording.
+    private func pillTapped() {
+        if showingControls {
+            if timelapse.phase == .recording { stopTimelapse(.user) }
+        } else {
+            toggleControls()
+        }
+    }
+
+    private func startTimelapse() {
+        // Ask for (add-only) Photos access up front, so a finished clip is never lost
+        switch PHPhotoLibrary.authorizationStatus(for: .addOnly) {
+        case .authorized, .limited:
+            startTimelapseIfEnoughSpace()
+        case .notDetermined:
+            PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
+                DispatchQueue.main.async {
+                    if status == .authorized || status == .limited {
+                        startTimelapseIfEnoughSpace()
+                    } else {
+                        timelapseAlert = .photosDenied
+                    }
+                }
+            }
+        default:
+            timelapseAlert = .photosDenied
+        }
+    }
+
+    private func startTimelapseIfEnoughSpace() {
+        if let free = TimelapseController.availableSpace(), free < TimelapseController.minimumFreeSpaceToStart {
+            timelapseAlert = .lowStorage
+            return
+        }
+        guard let cameraUIView else { return }
+        let orientation = UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.interfaceOrientation }.first ?? .portrait
+        timelapse.start(cameraView: cameraUIView, interfaceOrientation: orientation)
+        Haptics.medium()
+        showToast(ToastMessage(icon: "timelapse", text: "Time-lapse started · 1 frame every 2 s",
+                               tint: Theme.danger, duration: 3.5))
+    }
+
+    private func stopTimelapse(_ reason: TimelapseController.StopReason) {
+        guard timelapse.phase == .recording else { return }
+        timelapse.stop { outcome in
+            switch outcome {
+            case .saved(let url):
+                Haptics.success()
+                let (icon, text): (String, String)
+                switch reason {
+                case .user: (icon, text) = ("checkmark.circle.fill", "Time-lapse saved to Photos")
+                case .timeLimit: (icon, text) = ("checkmark.circle.fill", "Time-lapse stopped at 3 hours · saved to Photos")
+                case .lowStorage: (icon, text) = ("exclamationmark.triangle.fill", "Storage almost full · time-lapse saved to Photos")
+                case .thermal: (icon, text) = ("thermometer.high", "Phone is too warm · time-lapse saved to Photos")
+                }
+                showToast(ToastMessage(icon: icon, text: text, tint: Theme.accent, duration: 8,
+                                       actionTitle: "Share", action: { shareFile(url) },
+                                       onExpire: { try? FileManager.default.removeItem(at: url) }))
+            case .tooShort:
+                Haptics.warning()
+                showToast(ToastMessage(icon: "exclamationmark.triangle.fill",
+                                       text: "Too short to save · record at least 20 s", duration: 3.5))
+            case .failed(let url):
+                Haptics.warning()
+                if let url {
+                    // Still keepable through the share sheet (Save to Files, AirDrop)
+                    showToast(ToastMessage(icon: "exclamationmark.triangle.fill", text: "Couldn't save to Photos",
+                                           tint: Theme.danger, duration: 8,
+                                           actionTitle: "Share", action: { shareFile(url) },
+                                           onExpire: { try? FileManager.default.removeItem(at: url) }))
+                } else {
+                    showToast(ToastMessage(icon: "exclamationmark.triangle.fill", text: "Couldn't save to Photos",
+                                           tint: Theme.danger, duration: 3.5))
+                }
+            }
+        }
+    }
+
+    /// Share sheet for a finished clip; the temporary file is deleted when it closes.
+    private func shareFile(_ url: URL) {
+        let window = UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.keyWindow }.first
+        guard var presenter = window?.rootViewController else {
+            try? FileManager.default.removeItem(at: url)
+            return
+        }
+        while let presented = presenter.presentedViewController { presenter = presented }
+        let sheet = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        sheet.completionWithItemsHandler = { _, _, _, _ in
+            try? FileManager.default.removeItem(at: url)
+        }
+        if let popover = sheet.popoverPresentationController, let view = presenter.view {
+            popover.sourceView = view
+            popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.maxY - 120, width: 1, height: 1)
+        }
+        presenter.present(sheet, animated: true)
     }
 
     private func performToastAction() {
@@ -442,6 +619,8 @@ struct ContentView: View {
     }
 
     private func showToast(_ message: ToastMessage) {
+        // A toast replaced before it expired never gets its action used
+        if let previous = toast, previous.id != message.id { previous.onExpire?() }
         lastToast = message
         UIAccessibility.post(notification: .announcement, argument: message.text)
         // The countdown starts once the toast has actually animated in, not when it was
@@ -451,7 +630,10 @@ struct ContentView: View {
             toast = message
         } completion: {
             DispatchQueue.main.asyncAfter(deadline: .now() + message.duration) {
-                if toast?.id == message.id { toast = nil }
+                if toast?.id == message.id {
+                    toast = nil
+                    message.onExpire?()
+                }
             }
         }
     }

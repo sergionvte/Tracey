@@ -71,6 +71,9 @@ class CameraViewModel: ObservableObject {
     @Published var isCameraAccessDenied = false
     /// Camera access has been granted (false while undecided or denied)
     @Published var isCameraAuthorized = false
+    /// While a time-lapse records, the output size is fixed: loading a reference must not
+    /// switch the capture mode
+    var isCaptureModeFrozen = false
 
     let imageStorage = ImageStorageManager()
 
@@ -274,7 +277,7 @@ class CameraViewModel: ObservableObject {
             resetViewport()
 
             // Restore the capture mode the overlay was aligned with (older saves have none)
-            if let savedMode = configuration.captureMode {
+            if let savedMode = configuration.captureMode, !isCaptureModeFrozen {
                 captureMode = savedMode
             }
 
