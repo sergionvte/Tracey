@@ -204,7 +204,8 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
         overlayImageView.isHidden = true
         contentView.addSubview(overlayImageView)
 
-        // Grid: 1 pt white line on a 2 pt dark halo, so it reads on paper and on dark images
+        // Grid: 1 pt white line on a 3 pt dark halo (50%), so it reads on white paper (where a
+        // white line alone vanishes) and on dark images
         gridView.isUserInteractionEnabled = false
         gridView.isHidden = true
         for layer in [gridHaloLayer, gridLineLayer] {
@@ -212,7 +213,7 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
             layer.lineCap = .square
             gridView.layer.addSublayer(layer)
         }
-        gridHaloLayer.strokeColor = UIColor.black.withAlphaComponent(0.35).cgColor
+        gridHaloLayer.strokeColor = UIColor.black.withAlphaComponent(0.5).cgColor
         gridLineLayer.strokeColor = UIColor.white.withAlphaComponent(0.9).cgColor
         contentView.addSubview(gridView)
     }
@@ -482,10 +483,18 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
                 layer.path = path.cgPath
             }
         }
-        // Constant on screen whatever the image size
-        let scale = max(abs(state.scale), 0.01)
+        CATransaction.commit()
+        updateGridLineWidths()
+    }
+
+    /// Constant on screen whatever the image size and the locked view's zoom.
+    private func updateGridLineWidths() {
+        guard !gridView.isHidden, let state = overlayState else { return }
+        let scale = max(abs(state.scale) * viewportScale, 0.01)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
         gridLineLayer.lineWidth = 1 / scale
-        gridHaloLayer.lineWidth = 2 / scale
+        gridHaloLayer.lineWidth = 3 / scale
         CATransaction.commit()
     }
 
@@ -495,6 +504,7 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
         // Scale about the screen center, then translate
         contentView.transform = CGAffineTransform(scaleX: viewportScale, y: viewportScale)
             .concatenating(CGAffineTransform(translationX: viewportOffset.x, y: viewportOffset.y))
+        updateGridLineWidths()
     }
 
     private func clampViewport() {
