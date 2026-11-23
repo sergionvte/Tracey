@@ -670,8 +670,26 @@ struct EmptyStateCard: View {
     let onImport: () -> Void
     let onLibrary: () -> Void
     let onShowTour: () -> Void
+    /// Matches the tour card's height so the crossfade doesn't jump
+    var minHeight: CGFloat = 0
+    /// Reports the card's own height (before `minHeight`)
+    var onNaturalHeight: (CGFloat) -> Void = { _ in }
 
     var body: some View {
+        // At very large text sizes the card scrolls instead of growing past the screen
+        ViewThatFits(in: .vertical) {
+            content
+            ScrollView { content }
+                .scrollBounceBehavior(.basedOnSize)
+        }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { onNaturalHeight($0) }
+        .frame(maxWidth: 360, minHeight: minHeight)
+        .glassSurface(RoundedRectangle(cornerRadius: 34, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
+        .onTapGesture {}
+    }
+
+    private var content: some View {
         VStack(spacing: 20) {
             ZStack {
                 Circle()
@@ -686,6 +704,7 @@ struct EmptyStateCard: View {
                 Text("Ready to trace")
                     .font(.title2.weight(.bold))
                     .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
                 Text("Pick a reference image. It floats over your camera so you can trace it onto paper.")
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.7))
@@ -728,10 +747,6 @@ struct EmptyStateCard: View {
             }
         }
         .padding(24)
-        .frame(maxWidth: 360)
-        .glassSurface(RoundedRectangle(cornerRadius: 34, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
-        .onTapGesture {}
     }
 }
 

@@ -26,6 +26,9 @@ struct ContentView: View {
     /// launch so the first frame already shows the tour, not the welcome card.
     @State private var isTourPresented = !UserDefaults.standard.bool(forKey: ContentView.hasSeenTourKey)
     @State private var tourPage = 0
+    /// Natural heights of the welcome and tour cards (they share the taller one)
+    @State private var welcomeCardHeight: CGFloat = 0
+    @State private var tourCardHeight: CGFloat = 0
     /// Bottom of the top row (tool column), in the chrome's coordinates
     @State private var topChromeBottom: CGFloat = 0
     private static let chromeSpace = "chrome"
@@ -289,10 +292,14 @@ struct ContentView: View {
                 // couldn't be dragged until some other state change. Driving visibility and
                 // hit-testing from state makes it stop catching touches immediately.
                 let showsWelcome = viewModel.overlayImage == nil && showingControls && !isTourPresented
+                // Both cards get the taller one's height, so swapping them doesn't jump
+                let sharedCardHeight = min(max(welcomeCardHeight, tourCardHeight), geometry.size.height - 24)
                 EmptyStateCard(
                     onImport: { showingImagePicker = true },
                     onLibrary: { viewModel.showingSavedImages = true },
-                    onShowTour: openTour
+                    onShowTour: openTour,
+                    minHeight: sharedCardHeight,
+                    onNaturalHeight: { welcomeCardHeight = $0 }
                 )
                 .padding(.horizontal, 32)
                 // Never taller than the screen: an oversized card (large text) would grow the
@@ -315,7 +322,10 @@ struct ContentView: View {
                     .accessibilityHidden(true)
 
                 // Same spot and style as the welcome card; crossfades with it
-                TourCard(page: $tourPage, onFinish: finishTour)
+                TourCard(page: $tourPage, onFinish: finishTour,
+                         maxHeight: geometry.size.height - 24,
+                         minHeight: sharedCardHeight,
+                         onNaturalHeight: { tourCardHeight = $0 })
                     .padding(.horizontal, 32)
                     .frame(maxHeight: geometry.size.height - 24)
                     .opacity(isTourPresented ? 1 : 0)
@@ -427,7 +437,10 @@ struct ContentView: View {
 
     private func openTour() {
         tourPage = 0
-        withAnimation(Theme.spring) { isTourPresented = true }
+        withAnimation(Theme.spring) {
+            showingImageControls = false // don't stack two glass cards
+            isTourPresented = true
+        }
     }
 
     /// Skip or Get Started. The flag is only set here, so quitting mid-tour shows it again.

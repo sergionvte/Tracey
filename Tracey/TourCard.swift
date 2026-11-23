@@ -12,6 +12,12 @@ struct TourCard: View {
     @Binding var page: Int
     /// Skip or Get Started
     let onFinish: () -> Void
+    /// Tallest the card may be (the screen); pages scroll inside if they don't fit
+    var maxHeight: CGFloat = .infinity
+    /// Matches the welcome card's height so the crossfade doesn't jump
+    var minHeight: CGFloat = 0
+    /// Reports the card's own height (before `minHeight`)
+    var onNaturalHeight: (CGFloat) -> Void = { _ in }
 
     struct Page {
         let symbol: String
@@ -36,48 +42,89 @@ struct TourCard: View {
 
     private var isLastPage: Bool { page >= Self.pages.count - 1 }
 
+    /// Icon circle grows with the text, up to a point
+    @ScaledMetric(relativeTo: .title2) private var scaledIcon: CGFloat = 76
+    private var iconSize: CGFloat { min(scaledIcon, 108) }
+
+    /// Height of the tallest page at the current text size
+    @State private var tallestPage: CGFloat = 0
+    /// Dots + main button
+    @State private var footerHeight: CGFloat = 0
+
+    /// Room for Skip above the pages (grows with the text size)
+    @ScaledMetric(relativeTo: .subheadline) private var topPadding: CGFloat = 34
+    private let bottomPadding: CGFloat = 24
+    private let spacing: CGFloat = 18
+
+    /// The paging area fits the tallest page, unless the card would outgrow the screen
+    private var pageAreaHeight: CGFloat {
+        let room = maxHeight - topPadding - bottomPadding - spacing - footerHeight
+        return max(120, min(tallestPage, room))
+    }
+
     var body: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: spacing) {
             TabView(selection: $page) {
                 ForEach(Self.pages.indices, id: \.self) { index in
-                    pageView(index)
-                        .tag(index)
+                    // Scrolls only when the text is too large for the card
+                    ScrollView {
+                        pageView(index)
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
+                    .tag(index)
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
-            .frame(height: 212)
-
-            // Page dots
-            HStack(spacing: 8) {
-                ForEach(Self.pages.indices, id: \.self) { index in
-                    Circle()
-                        .fill(index == page ? Theme.accent : Color.white.opacity(0.3))
-                        .frame(width: 6, height: 6)
+            .frame(height: pageAreaHeight)
+            // Measure every page at its natural height (hidden), so the area fits the tallest
+            .background {
+                ZStack {
+                    ForEach(Self.pages.indices, id: \.self) { index in
+                        pageView(index).fixedSize(horizontal: false, vertical: true)
+                    }
                 }
+                .hidden()
+                .accessibilityHidden(true)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { tallestPage = $0 }
             }
-            .accessibilityHidden(true)
 
-            Button {
-                if isLastPage {
-                    onFinish()
-                } else {
-                    withAnimation(Theme.spring) { page += 1 }
+            VStack(spacing: spacing) {
+                // Page dots
+                HStack(spacing: 8) {
+                    ForEach(Self.pages.indices, id: \.self) { index in
+                        Circle()
+                            .fill(index == page ? Theme.accent : Color.white.opacity(0.3))
+                            .frame(width: 6, height: 6)
+                    }
                 }
-            } label: {
-                Text(isLastPage ? "Get Started" : "Next")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.black)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                    .background(Theme.accent, in: Capsule())
-                    .contentShape(Capsule())
+                .accessibilityHidden(true)
+
+                Button {
+                    if isLastPage {
+                        onFinish()
+                    } else {
+                        withAnimation(Theme.spring) { page += 1 }
+                    }
+                } label: {
+                    Text(isLastPage ? "Get Started" : "Next")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.black)
+                        .multilineTextAlignment(.center)
+                        .padding(.vertical, 8)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 52)
+                        .background(Theme.accent, in: Capsule())
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { footerHeight = $0 }
         }
         .padding(.horizontal, 24)
-        .padding(.top, 34)
-        .padding(.bottom, 24)
-        .frame(maxWidth: 360)
+        .padding(.top, topPadding)
+        .padding(.bottom, bottomPadding)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { onNaturalHeight($0) }
+        .frame(maxWidth: 360, minHeight: minHeight)
         .overlay(alignment: .topTrailing) {
             Button(action: onFinish) {
                 Text("Skip")
@@ -104,9 +151,9 @@ struct TourCard: View {
             ZStack {
                 Circle()
                     .fill(Theme.accent.opacity(0.18))
-                    .frame(width: 76, height: 76)
+                    .frame(width: iconSize, height: iconSize)
                 Image(systemName: item.symbol)
-                    .font(.system(size: 32, weight: .semibold))
+                    .font(.system(size: iconSize * 32 / 76, weight: .semibold))
                     .foregroundStyle(Theme.accent)
             }
 
@@ -115,15 +162,15 @@ struct TourCard: View {
                     .font(.title2.weight(.bold))
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(item.body)
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.7))
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Page \(index + 1) of \(Self.pages.count). \(item.title). \(item.body)")
     }
