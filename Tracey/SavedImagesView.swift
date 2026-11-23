@@ -130,8 +130,10 @@ struct SavedReferenceCard: View {
 
     private var preview: some View {
         ZStack {
+            // Outline is blue lines on transparent: show it on "paper", like the filter tiles
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.black.opacity(0.35))
+                .fill(configuration.filter == ReferenceFilter.outline.rawValue
+                      ? Color.white.opacity(0.92) : Color.black.opacity(0.35))
 
             if let thumbnail, thumbnail.size.width > 0, thumbnail.size.height > 0 {
                 GeometryReader { geo in

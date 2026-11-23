@@ -87,14 +87,15 @@ final class ReferenceFilterRenderer {
                 kCIInputSaturationKey: 0.0
             ])
         case .contrast:
-            output = input.applyingFilter("CIColorControls", parameters: [
-                kCIInputSaturationKey: 0.0,
-                kCIInputContrastKey: 1.6
-            ])
+            output = highContrastGray(input, extent: workExtent)
         case .outline:
-            // Black lines on transparent, recolored blue (alpha kept from the lines)
+            // Gray, softened a little and with a higher threshold, so busy photos give the
+            // main shapes instead of texture noise. Black lines on transparent, recolored blue
+            // (alpha kept from the lines).
             let lines = input
-                .applyingFilter("CILineOverlay")
+                .applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: 0.0])
+                .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: 1.5])
+                .applyingFilter("CILineOverlay", parameters: ["inputThreshold": 0.2])
                 .applyingFilter("CIColorMatrix", parameters: [
                     "inputRVector": CIVector(x: 0, y: 0, z: 0, w: 0),
                     "inputGVector": CIVector(x: 0, y: 0, z: 0, w: 0),
@@ -113,6 +114,32 @@ final class ReferenceFilterRenderer {
         let pointWidth = max(image.size.width, 1)
         let scale = CGFloat(cgImage.width) / pointWidth
         return UIImage(cgImage: cgImage, scale: max(scale, 0.01), orientation: .up)
+    }
+
+    /// Grayscale with contrast 1.6, computed in sRGB (in Core Image's linear space a contrast
+    /// pivot at 0.5 sits near sRGB 188 and turns most photos black) and pivoting around the
+    /// image's own average gray, so dark or saturated photos spread out instead of going black.
+    private func highContrastGray(_ input: CIImage, extent: CGRect) -> CIImage {
+        let gray = input
+            .applyingFilter("CILinearToSRGBToneCurve")
+            .applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: 0.0])
+        var pixel = [Float](repeating: 0.5, count: 4)
+        let average = gray.applyingFilter("CIAreaAverage", parameters: [kCIInputExtentKey: CIVector(cgRect: extent)])
+        context.render(average, toBitmap: &pixel, rowBytes: 16, bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
+                       format: .RGBAf, colorSpace: nil)
+        let mean = CGFloat(pixel[0].isFinite ? min(max(pixel[0], 0.05), 0.95) : 0.5)
+        let contrast: CGFloat = 1.6
+        let bias = 0.5 - contrast * mean
+        return gray
+            .applyingFilter("CIColorMatrix", parameters: [
+                "inputRVector": CIVector(x: contrast, y: 0, z: 0, w: 0),
+                "inputGVector": CIVector(x: 0, y: contrast, z: 0, w: 0),
+                "inputBVector": CIVector(x: 0, y: 0, z: contrast, w: 0),
+                "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+                "inputBiasVector": CIVector(x: bias, y: bias, z: bias, w: 0)
+            ])
+            .applyingFilter("CIColorClamp")
+            .applyingFilter("CISRGBToneCurveToLinear")
     }
 
     /// Core Image doesn't apply UIImage orientation by itself.
