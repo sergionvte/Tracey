@@ -11,15 +11,15 @@ import SwiftUI
 extension CameraCaptureMode {
     var shortTitle: String {
         switch self {
-        case .video: return "Video"
-        case .photo: return "Photo"
+        case .video: return String(localized: "Video")
+        case .photo: return String(localized: "Photo")
         }
     }
 
     var detail: String {
         switch self {
-        case .video: return "Video mode · smoother preview"
-        case .photo: return "Photo mode · wider frame"
+        case .video: return String(localized: "Video mode · smoother preview")
+        case .photo: return String(localized: "Photo mode · wider frame")
         }
     }
 }
@@ -68,8 +68,8 @@ struct CaptureModeSwitch: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(option.detail)
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
-                .accessibilityHint(isLocked ? "Unlock to change the camera mode."
-                                   : isRecording ? "Stop the time-lapse to change the camera mode." : "")
+                .accessibilityHint(isLocked ? String(localized: "Unlock to change the camera mode.")
+                                   : isRecording ? String(localized: "Stop the time-lapse to change the camera mode.") : "")
             }
 
             // Why it's blocked: lock, or time-lapse. Collapses to nothing otherwise (kept in
@@ -124,12 +124,12 @@ struct ToolColumn: View {
                     .transition(.scale.combined(with: .opacity))
 
                     // Focus-point brackets: reads as camera focus (Center Image keeps `scope`)
-                    GlassIconButton(systemName: "dot.viewfinder", label: "Focus center", action: onFocus)
+                    GlassIconButton(systemName: "dot.viewfinder", label: String(localized: "Focus center"), action: onFocus)
                         .transition(.scale.combined(with: .opacity))
 
                     GlassIconButton(
                         systemName: isTorchOn ? "flashlight.on.fill" : "flashlight.off.fill",
-                        label: isTorchOn ? "Turn light off" : "Turn light on",
+                        label: isTorchOn ? String(localized: "Turn light off") : String(localized: "Turn light on"),
                         isActive: isTorchOn,
                         action: onTorch
                     )
@@ -137,7 +137,7 @@ struct ToolColumn: View {
 
                     GlassIconButton(
                         systemName: "arrow.left.and.right.righttriangle.left.righttriangle.right",
-                        label: "Mirror image",
+                        label: String(localized: "Mirror image"),
                         isActive: isFlipped,
                         isEnabled: !isLocked,
                         onDisabledTap: onLockedTap,
@@ -149,7 +149,7 @@ struct ToolColumn: View {
                 if showsResetView {
                     GlassIconButton(
                         systemName: "arrow.counterclockwise",
-                        label: "Reset view",
+                        label: String(localized: "Reset view"),
                         isActive: true,
                         action: onResetView
                     )
@@ -191,9 +191,9 @@ struct BottomDock: View {
             // Left: get a reference
             HStack(spacing: 2) {
                 // Changing the image while locked would throw the alignment away
-                DockIconButton(systemName: "photo.badge.plus", label: "Choose image",
+                DockIconButton(systemName: "photo.badge.plus", label: String(localized: "Choose image"),
                                isEnabled: !isLocked, onDisabledTap: onChangeImageWhileLocked, action: onImport)
-                DockIconButton(systemName: "photo.stack", label: "Library",
+                DockIconButton(systemName: "photo.stack", label: String(localized: "Library"),
                                isEnabled: !isLocked, onDisabledTap: onChangeImageWhileLocked, action: onLibrary)
             }
             .padding(5)
@@ -219,7 +219,7 @@ struct BottomDock: View {
                 // Stays enabled while locked: opacity can still be changed mid-trace
                 DockIconButton(
                     systemName: "slider.horizontal.3",
-                    label: "Adjust image",
+                    label: String(localized: "Adjust image"),
                     isActive: isAdjustOpen,
                     action: onAdjust
                 )
@@ -318,8 +318,8 @@ struct LockButton: View {
             }
             .accessibilityElement()
             .accessibilityAddTraits(.isButton)
-            .accessibilityLabel(isLocked ? "Unlock image" : "Lock image")
-            .accessibilityHint(isLocked ? "Touch and hold to unlock." : "Fixes the image to the camera.")
+            .accessibilityLabel(isLocked ? String(localized: "Unlock image") : String(localized: "Lock image"))
+            .accessibilityHint(isLocked ? String(localized: "Touch and hold to unlock.") : String(localized: "Fixes the image to the camera."))
             // VoiceOver activation is already deliberate: it unlocks without the hold
             .accessibilityAction { if isLocked { onUnlock() } else { onLock() } }
     }
@@ -396,7 +396,7 @@ struct AdjustPanel: View {
 
             AdjustRow(
                 icon: "circle.lefthalf.filled",
-                title: "Opacity",
+                title: String(localized: "Opacity"),
                 value: "\(Int(viewModel.imageOpacity * 100))%",
                 onReset: { viewModel.imageOpacity = 0.6 }
             ) {
@@ -408,7 +408,7 @@ struct AdjustPanel: View {
             VStack(spacing: 10) {
                 AdjustRow(
                     icon: "arrow.up.left.and.arrow.down.right",
-                    title: "Size",
+                    title: String(localized: "Size"),
                     value: String(format: "%.1f×", viewModel.imageScale),
                     onReset: { viewModel.imageScale = 1.0 }
                 ) {
@@ -417,7 +417,7 @@ struct AdjustPanel: View {
 
                 AdjustRow(
                     icon: "rotate.right",
-                    title: "Rotation",
+                    title: String(localized: "Rotation"),
                     value: "\(Int(signedRotation.rounded()))°",
                     onReset: { viewModel.imageRotation = 0 }
                 ) {

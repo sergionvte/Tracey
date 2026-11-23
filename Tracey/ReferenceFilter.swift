@@ -20,20 +20,20 @@ enum ReferenceFilter: String, CaseIterable, Identifiable, Codable {
     /// Short label under the tile
     var label: String {
         switch self {
-        case .original: return "Original"
-        case .blackAndWhite: return "B&W"
-        case .contrast: return "Contrast"
-        case .outline: return "Outline"
+        case .original: return String(localized: "Original")
+        case .blackAndWhite: return String(localized: "B&W")
+        case .contrast: return String(localized: "Contrast")
+        case .outline: return String(localized: "Outline")
         }
     }
 
     /// Spoken name (VoiceOver)
     var accessibilityName: String {
         switch self {
-        case .original: return "Original"
-        case .blackAndWhite: return "Black and white"
-        case .contrast: return "High contrast"
-        case .outline: return "Outline"
+        case .original: return String(localized: "Original")
+        case .blackAndWhite: return String(localized: "Black and white")
+        case .contrast: return String(localized: "High contrast")
+        case .outline: return String(localized: "Outline")
         }
     }
 }

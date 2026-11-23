@@ -27,17 +27,17 @@ struct TourCard: View {
 
     static let pages: [Page] = [
         Page(symbol: "photo.on.rectangle.angled",
-             title: "Trace anything",
-             body: "Pick an image. It floats over your camera view so you can follow its lines on paper."),
+             title: String(localized: "Trace anything"),
+             body: String(localized: "Pick an image. It floats over your camera view so you can follow its lines on paper.")),
         Page(symbol: "iphone.gen3",
-             title: "Set up your phone",
-             body: "Hold it steady 20–40 cm above the paper. A stand, a glass or a stack of books works well."),
+             title: String(localized: "Set up your phone"),
+             body: String(localized: "Hold it steady 20–40 cm above the paper. A stand, a glass or a stack of books works well.")),
         Page(symbol: "lock.fill",
-             title: "Place it, then lock",
-             body: "Drag, pinch and rotate the image to fit your paper, then tap Lock. Tap the screen to hide the controls."),
+             title: String(localized: "Place it, then lock"),
+             body: String(localized: "Drag, pinch and rotate the image to fit your paper, then tap Lock. Tap the screen to hide the controls.")),
         Page(symbol: "timelapse",
-             title: "Record & refine",
-             body: "Record a time-lapse of your drawing, and try the Outline filter to see the lines more clearly.")
+             title: String(localized: "Record & refine"),
+             body: String(localized: "Record a time-lapse of your drawing, and try the Outline filter to see the lines more clearly."))
     ]
 
     private var isLastPage: Bool { page >= Self.pages.count - 1 }
@@ -106,7 +106,7 @@ struct TourCard: View {
                         withAnimation(Theme.spring) { page += 1 }
                     }
                 } label: {
-                    Text(isLastPage ? "Get Started" : "Next")
+                    Text(isLastPage ? String(localized: "Get Started") : String(localized: "Next"))
                         .font(.body.weight(.semibold))
                         .foregroundStyle(.black)
                         .multilineTextAlignment(.center)

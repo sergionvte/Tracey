@@ -25,8 +25,8 @@ enum CameraCaptureMode: String, Codable, CaseIterable {
 
     var title: String {
         switch self {
-        case .video: return "Video mode · smoother"
-        case .photo: return "Photo mode · wider frame"
+        case .video: return String(localized: "Video mode · smoother")
+        case .photo: return String(localized: "Photo mode · wider frame")
         }
     }
 

@@ -41,7 +41,7 @@ struct RecordButton: View {
         .disabled(isSaving)
         .glassSurface(Circle(), tint: isRecording ? Theme.danger : Theme.controlTint,
                       interactive: isEnabled && !isSaving)
-        .accessibilityLabel(isSaving ? "Saving time-lapse" : isRecording ? "Stop time-lapse" : "Start time-lapse")
+        .accessibilityLabel(isSaving ? String(localized: "Saving time-lapse") : isRecording ? String(localized: "Stop time-lapse") : String(localized: "Start time-lapse"))
     }
 }
 
@@ -73,7 +73,7 @@ struct TimelapsePill: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(accessibilityLabel(elapsed: elapsed))
-            .accessibilityHint(controlsVisible && controller.phase == .recording ? "Double-tap to stop." : "")
+            .accessibilityHint(controlsVisible && controller.phase == .recording ? String(localized: "Double-tap to stop.") : "")
         }
         .onAppear { startPulse() }
         .onChange(of: reduceMotion) { _, _ in startPulse() }
@@ -139,24 +139,29 @@ struct TimelapsePill: View {
         duration < 60 ? String(format: "%.1f s", duration) : clock(duration)
     }
 
-    /// "12 minutes 34 seconds"
+    /// "12 minutes, 34 seconds", in the user's language
     private static func spoken(_ interval: TimeInterval) -> String {
+        let formatter = DateComponentsFormatter()
+        formatter.unitsStyle = .full
+        formatter.allowedUnits = [.hour, .minute, .second]
+        formatter.zeroFormattingBehavior = .dropAll
         let total = max(0, Int(interval))
-        let parts: [(Int, String)] = [(total / 3600, "hour"), ((total % 3600) / 60, "minute"), (total % 60, "second")]
-        let words = parts.filter { $0.0 > 0 }.map { "\($0.0) \($0.1)\($0.0 == 1 ? "" : "s")" }
-        return words.isEmpty ? "0 seconds" : words.joined(separator: " ")
+        return total == 0
+            ? Duration.seconds(0).formatted(.units(allowed: [.seconds], width: .wide, zeroValueUnits: .show(length: 1)))
+            : formatter.string(from: TimeInterval(total)) ?? ""
     }
 
     private func accessibilityLabel(elapsed: TimeInterval) -> String {
         switch controller.phase {
         case .saving:
-            return "Saving time-lapse"
+            return String(localized: "Saving time-lapse")
         default:
-            let state = controller.isPaused ? "Time-lapse paused" : "Time-lapse recording"
+            let state = controller.isPaused ? String(localized: "Time-lapse paused") : String(localized: "Time-lapse recording")
             let clip = controller.clipDuration < 60
-                ? String(format: "%.1f seconds", controller.clipDuration)
+                ? Duration.milliseconds(Int(controller.clipDuration * 1000))
+                    .formatted(.units(allowed: [.seconds], width: .wide, fractionalPart: .show(length: 1)))
                 : Self.spoken(controller.clipDuration)
-            return "\(state), \(Self.spoken(elapsed)), clip \(clip)"
+            return String(localized: "\(state), \(Self.spoken(elapsed)), clip \(clip)")
         }
     }
 }

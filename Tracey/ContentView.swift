@@ -155,7 +155,7 @@ struct ContentView: View {
                             onRecord: recordTapped,
                             onRecordWhileDenied: {
                                 Haptics.warning()
-                                showToast(ToastMessage(icon: "video.slash.fill", text: "Camera access is off", tint: Theme.accent))
+                                showToast(ToastMessage(icon: "video.slash.fill", text: String(localized: "Camera access is off"), tint: Theme.accent))
                             },
                             isTorchOn: viewModel.isTorchOn,
                             isFlipped: viewModel.isFlipped,
@@ -357,7 +357,7 @@ struct ContentView: View {
             UIApplication.shared.isIdleTimerDisabled = true
             timelapse.onAutoStop = { reason in stopTimelapse(reason) }
             timelapse.onResumed = {
-                showToast(ToastMessage(icon: "timelapse", text: "Time-lapse resumed"))
+                showToast(ToastMessage(icon: "timelapse", text: String(localized: "Time-lapse resumed")))
             }
         }
         .onDisappear {
@@ -381,7 +381,7 @@ struct ContentView: View {
         .onChange(of: viewModel.isCameraAuthorized) { _, _ in showPlacementHintIfNeeded() }
         .onReceive(viewModel.filterFailed) { _ in
             Haptics.warning()
-            showToast(ToastMessage(icon: "exclamationmark.triangle.fill", text: "Couldn't apply filter", tint: Theme.danger))
+            showToast(ToastMessage(icon: "exclamationmark.triangle.fill", text: String(localized: "Couldn't apply filter"), tint: Theme.danger))
         }
         .onChange(of: scenePhase) { _, phase in
             timelapse.setBackgrounded(phase == .background)
@@ -411,7 +411,7 @@ struct ContentView: View {
             // Confirm only once the sheet is gone, so the toast isn't animating under it
             if pendingReferenceLoadedToast {
                 pendingReferenceLoadedToast = false
-                showToast(ToastMessage(icon: "checkmark.circle.fill", text: "Reference loaded", tint: Theme.accent))
+                showToast(ToastMessage(icon: "checkmark.circle.fill", text: String(localized: "Reference loaded"), tint: Theme.accent))
             }
         }) {
             SavedImagesView(viewModel: viewModel, storage: viewModel.imageStorage, isPresented: $viewModel.showingSavedImages,
@@ -434,7 +434,7 @@ struct ContentView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
             guard canShow() else { return }
             UserDefaults.standard.set(true, forKey: key)
-            showToast(ToastMessage(icon: "hand.draw.fill", text: "Drag, pinch & rotate to place it · then tap Lock",
+            showToast(ToastMessage(icon: "hand.draw.fill", text: String(localized: "Drag, pinch & rotate to place it · then tap Lock"),
                                    tint: Theme.accent, duration: 3.5))
         }
     }
@@ -479,7 +479,7 @@ struct ContentView: View {
         }
         Haptics.medium()
         showToast(ToastMessage(icon: "lock.fill",
-                               text: "Locked · drag & pinch to move the view. Hold the lock to unlock.",
+                               text: String(localized: "Locked · drag & pinch to move the view. Hold the lock to unlock."),
                                tint: Theme.accent, duration: 3.5))
     }
 
@@ -489,18 +489,18 @@ struct ContentView: View {
             viewModel.isPropertiesLocked = false
         }
         Haptics.rigid()
-        showToast(ToastMessage(icon: "lock.open.fill", text: "Unlocked · edit your reference"))
+        showToast(ToastMessage(icon: "lock.open.fill", text: String(localized: "Unlocked · edit your reference")))
     }
 
     /// A plain tap on the lock while locked: explain how to unlock.
     private func holdToUnlockHint() {
         Haptics.light()
-        showToast(ToastMessage(icon: "lock.fill", text: "Hold to unlock", tint: Theme.accent, duration: 3.5))
+        showToast(ToastMessage(icon: "lock.fill", text: String(localized: "Hold to unlock"), tint: Theme.accent, duration: 3.5))
     }
 
     private func changeImageWhileLocked() {
         Haptics.warning()
-        showToast(ToastMessage(icon: "lock.fill", text: "Unlock to change image", tint: Theme.accent))
+        showToast(ToastMessage(icon: "lock.fill", text: String(localized: "Unlock to change image"), tint: Theme.accent))
     }
 
     private func selectCaptureMode(_ mode: CameraCaptureMode) {
@@ -508,7 +508,7 @@ struct ContentView: View {
         // The clip's size is fixed when recording starts
         guard !timelapse.isActive else {
             Haptics.warning()
-            showToast(ToastMessage(icon: "timelapse", text: "Stop the time-lapse to change camera mode", tint: Theme.accent))
+            showToast(ToastMessage(icon: "timelapse", text: String(localized: "Stop the time-lapse to change camera mode"), tint: Theme.accent))
             return
         }
         guard !viewModel.isPropertiesLocked else {
@@ -529,23 +529,23 @@ struct ContentView: View {
         if viewModel.saveCurrentConfiguration(cameraZoom: zoom) {
             Haptics.success()
             showToast(ToastMessage(icon: "checkmark.circle.fill",
-                                   text: isUpdate ? "Updated in Library" : "Saved to Library",
+                                   text: isUpdate ? String(localized: "Updated in Library") : String(localized: "Saved to Library"),
                                    tint: Theme.accent))
         } else {
             Haptics.warning()
-            showToast(ToastMessage(icon: "exclamationmark.triangle.fill", text: "Couldn't save the image", tint: Theme.danger))
+            showToast(ToastMessage(icon: "exclamationmark.triangle.fill", text: String(localized: "Couldn't save the image"), tint: Theme.danger))
         }
     }
 
     private func lockedWarning() {
         Haptics.warning()
-        showToast(ToastMessage(icon: "lock.fill", text: "Unlock to edit", tint: Theme.accent))
+        showToast(ToastMessage(icon: "lock.fill", text: String(localized: "Unlock to edit"), tint: Theme.accent))
     }
 
     private func removeImage() {
         guard let removed = viewModel.removeOverlayImage() else { return }
         withAnimation(Theme.spring) { showingImageControls = false }
-        showToast(ToastMessage(icon: "trash", text: "Image removed", duration: 8, actionTitle: "Undo", action: {
+        showToast(ToastMessage(icon: "trash", text: String(localized: "Image removed"), duration: 8, actionTitle: String(localized: "Undo"), action: {
             viewModel.restore(removed)
             Haptics.light()
         }))
@@ -610,7 +610,7 @@ struct ContentView: View {
             .compactMap { ($0 as? UIWindowScene)?.interfaceOrientation }.first ?? .portrait
         timelapse.start(cameraView: cameraUIView, interfaceOrientation: orientation)
         Haptics.medium()
-        showToast(ToastMessage(icon: "timelapse", text: "Time-lapse started · 1 frame every 2 s",
+        showToast(ToastMessage(icon: "timelapse", text: String(localized: "Time-lapse started · 1 frame every 2 s"),
                                tint: Theme.danger, duration: 3.5))
     }
 
@@ -622,26 +622,26 @@ struct ContentView: View {
                 Haptics.success()
                 let (icon, text): (String, String)
                 switch reason {
-                case .user: (icon, text) = ("checkmark.circle.fill", "Time-lapse saved to Photos")
-                case .timeLimit: (icon, text) = ("checkmark.circle.fill", "Time-lapse stopped at 3 hours · saved to Photos")
-                case .lowStorage: (icon, text) = ("exclamationmark.triangle.fill", "Storage almost full · time-lapse saved to Photos")
-                case .thermal: (icon, text) = ("thermometer.high", "Phone is too warm · time-lapse saved to Photos")
+                case .user: (icon, text) = ("checkmark.circle.fill", String(localized: "Time-lapse saved to Photos"))
+                case .timeLimit: (icon, text) = ("checkmark.circle.fill", String(localized: "Time-lapse stopped at 3 hours · saved to Photos"))
+                case .lowStorage: (icon, text) = ("exclamationmark.triangle.fill", String(localized: "Storage almost full · time-lapse saved to Photos"))
+                case .thermal: (icon, text) = ("thermometer.high", String(localized: "Phone is too warm · time-lapse saved to Photos"))
                 }
                 showToast(ToastMessage(icon: icon, text: text, tint: Theme.accent, duration: 8,
-                                       actionTitle: "Share", action: { shareFile(url) }))
+                                       actionTitle: String(localized: "Share"), action: { shareFile(url) }))
             case .tooShort:
                 Haptics.warning()
                 showToast(ToastMessage(icon: "exclamationmark.triangle.fill",
-                                       text: "Too short to save · record at least 20 s", duration: 3.5))
+                                       text: String(localized: "Too short to save · record at least 20 s"), duration: 3.5))
             case .failed(let url):
                 Haptics.warning()
                 if let url {
                     // Still keepable through the share sheet (Save to Files, AirDrop)
-                    showToast(ToastMessage(icon: "exclamationmark.triangle.fill", text: "Couldn't save to Photos",
+                    showToast(ToastMessage(icon: "exclamationmark.triangle.fill", text: String(localized: "Couldn't save to Photos"),
                                            tint: Theme.danger, duration: 8,
-                                           actionTitle: "Share", action: { shareFile(url) }))
+                                           actionTitle: String(localized: "Share"), action: { shareFile(url) }))
                 } else {
-                    showToast(ToastMessage(icon: "exclamationmark.triangle.fill", text: "Couldn't save to Photos",
+                    showToast(ToastMessage(icon: "exclamationmark.triangle.fill", text: String(localized: "Couldn't save to Photos"),
                                            tint: Theme.danger, duration: 3.5))
                 }
             }
