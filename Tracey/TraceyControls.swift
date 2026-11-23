@@ -324,6 +324,10 @@ struct LockButton: View {
 struct AdjustPanel: View {
     @ObservedObject var viewModel: CameraViewModel
     let isLocked: Bool
+    /// Room between the top chrome and the dock; taller content scrolls inside
+    var maxHeight: CGFloat = .infinity
+
+    @State private var contentHeight: CGFloat = 0
 
     /// Model rotation (0..<360) shown as −180…180
     private var signedRotation: Double {
@@ -332,7 +336,24 @@ struct AdjustPanel: View {
     }
 
     var body: some View {
-        VStack(spacing: 14) {
+        ScrollView {
+            content
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(height: min(max(contentHeight, 1), maxHeight))
+        .tint(Theme.accent)
+        .frame(maxWidth: 440)
+        // Slightly darker glass so labels stay readable over a busy reference or bright paper
+        .glassSurface(RoundedRectangle(cornerRadius: 30, style: .continuous), tint: .black.opacity(0.35))
+        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+        // Taps on the panel background must not hide the controls
+        .contentShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .onTapGesture {}
+    }
+
+    private var content: some View {
+        VStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
                     Text("Adjust")
@@ -350,7 +371,7 @@ struct AdjustPanel: View {
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.white.opacity(0.7))
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 4)
+                    .padding(.top, 2)
                     .frame(maxWidth: .infinity, maxHeight: isLocked ? nil : 0, alignment: .topLeading)
                     .opacity(isLocked ? 1 : 0)
                     .clipped()
@@ -378,7 +399,7 @@ struct AdjustPanel: View {
 
             // Size and rotation would break the alignment with the paper, so only these are
             // disabled while locked; opacity stays live.
-            VStack(spacing: 14) {
+            VStack(spacing: 10) {
                 AdjustRow(
                     icon: "arrow.up.left.and.arrow.down.right",
                     title: "Size",
@@ -407,15 +428,8 @@ struct AdjustPanel: View {
             // Attached to the image; available while locked
             GridRow(divisions: $viewModel.gridDivisions)
         }
-        .tint(Theme.accent)
         .padding(.horizontal, 20)
-        .padding(.vertical, 16)
-        .frame(maxWidth: 440)
-        // Slightly darker glass so labels stay readable over a busy reference or bright paper
-        .glassSurface(RoundedRectangle(cornerRadius: 30, style: .continuous), tint: .black.opacity(0.35))
-        // Taps on the panel background must not hide the controls
-        .contentShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-        .onTapGesture {}
+        .padding(.vertical, 14)
     }
 }
 
@@ -426,7 +440,7 @@ private struct FilterPicker: View {
     let onSelect: (ReferenceFilter) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
                 Image(systemName: "camera.filters")
                     .font(.system(size: 14, weight: .semibold))
@@ -469,7 +483,7 @@ private struct FilterTile: View {
                         Image(uiImage: thumbnail)
                             .resizable()
                             .scaledToFill()
-                            .frame(width: 44, height: 44)
+                            .frame(width: 40, height: 40)
                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     } else {
                         ProgressView()
@@ -477,7 +491,7 @@ private struct FilterTile: View {
                             .tint(.black.opacity(0.5))
                     }
                 }
-                .frame(width: 44, height: 44)
+                .frame(width: 40, height: 40)
                 .overlay {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .stroke(Theme.accent, lineWidth: 2)
@@ -492,7 +506,7 @@ private struct FilterTile: View {
                     .minimumScaleFactor(0.8)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 64)
+            .frame(minHeight: 56)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -565,39 +579,69 @@ private struct AdjustRow<Control: View>: View {
     let onReset: () -> Void
     @ViewBuilder var control: Control
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.7))
-                    .frame(width: 20)
-                Text(title)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white)
-                Spacer()
-                Text(value)
-                    .font(.subheadline.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(.white.opacity(0.7))
-                    .contentTransition(.numericText())
-                    // Generous hit area for the double-tap reset
-                    .padding(.vertical, 6)
-                    .padding(.leading, 16)
-                    .contentShape(Rectangle())
-                    .onTapGesture(count: 2) {
-                        guard isEnabled else { return }
-                        withAnimation(.easeOut(duration: 0.2)) { onReset() }
-                        Haptics.light()
+        Group {
+            if typeSize >= .xLarge {
+                // Large text: label line above the slider
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 10) {
+                        iconView
+                        titleView
+                        Spacer()
+                        valueView
                     }
-                    .padding(.vertical, -6)
+                    control
+                }
+            } else {
+                // One compact line: icon, label, slider, value
+                HStack(spacing: 10) {
+                    iconView
+                    titleView
+                        .frame(width: 66, alignment: .leading)
+                    control
+                    valueView
+                        .frame(minWidth: 40, alignment: .trailing)
+                }
             }
-            control
         }
         .accessibilityElement(children: .contain)
         .accessibilityAction(named: "Reset \(title)") {
             if isEnabled { onReset() }
         }
+    }
+
+    private var iconView: some View {
+        Image(systemName: icon)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.7))
+            .frame(width: 20)
+    }
+
+    private var titleView: some View {
+        Text(title)
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .minimumScaleFactor(0.85)
+    }
+
+    private var valueView: some View {
+        Text(value)
+            .font(.subheadline.weight(.semibold).monospacedDigit())
+            .foregroundStyle(.white.opacity(0.7))
+            .contentTransition(.numericText())
+            // Generous hit area for the double-tap reset
+            .padding(.vertical, 6)
+            .padding(.leading, 12)
+            .contentShape(Rectangle())
+            .onTapGesture(count: 2) {
+                guard isEnabled else { return }
+                withAnimation(.easeOut(duration: 0.2)) { onReset() }
+                Haptics.light()
+            }
+            .padding(.vertical, -6)
     }
 }
 

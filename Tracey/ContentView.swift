@@ -26,6 +26,13 @@ struct ContentView: View {
     /// launch so the first frame already shows the tour, not the welcome card.
     @State private var isTourPresented = !UserDefaults.standard.bool(forKey: ContentView.hasSeenTourKey)
     @State private var tourPage = 0
+    /// Bottom of the top row (tool column), in the chrome's coordinates
+    @State private var topChromeBottom: CGFloat = 0
+    private static let chromeSpace = "chrome"
+    /// Dock: 68 pt lock button + 8 pt to the bottom safe area
+    private static let dockBottomPadding: CGFloat = 8
+    /// Space reserved under the toast/panel layer for the dock and the gap above it
+    private static let dockReservedHeight: CGFloat = 68 + dockBottomPadding + 12
     private static let hasSeenTourKey = "hasSeenTour"
 
     // Snap to center configuration
@@ -99,7 +106,10 @@ struct ContentView: View {
                 }
 
                 // MARK: Glass controls
-                VStack(spacing: 12) {
+                // Three independent layers, so nothing can push the dock around: the top row,
+                // the dock pinned to the bottom safe area, and the toast + Adjust panel floating
+                // just above the dock (the panel's height is capped and it scrolls inside).
+                VStack(spacing: 0) {
                     HStack(alignment: .top) {
                         // Hidden in place until there is an image: the welcome card is the only
                         // call to action
@@ -167,7 +177,19 @@ struct ContentView: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 4)
+                    // Bottom of the top chrome (tool column), to cap the Adjust panel's height
+                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.chromeSpace)).maxY } action: {
+                        topChromeBottom = $0
+                    }
 
+                    Spacer(minLength: 0)
+                }
+                .opacity(showingControls ? 1 : 0)
+                .allowsHitTesting(showingControls)
+                .accessibilityHidden(isTourPresented)
+
+                // Toast + Adjust panel, bottom-anchored just above the dock
+                VStack(spacing: 0) {
                     Spacer(minLength: 0)
 
                     // Always in the hierarchy (it can hold a button, e.g. Undo): fading it with
@@ -185,51 +207,60 @@ struct ContentView: View {
                     .accessibilityHidden(!isToastVisible)
                     .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { toastFrame = $0 }
                     .padding(.horizontal, 24)
+                    .padding(.bottom, isToastVisible ? 12 : 0)
+                    // An invisible toast takes no space
+                    .frame(height: isToastVisible ? nil : 0, alignment: .bottom)
 
                     // Adjust panel + dock as one item so the hidden panel adds no spacing.
                     // The panel is always in the hierarchy and fades/slides in place: removing it
                     // with a transition while the ⋯ menu was closing (Remove Image) left an
                     // invisible panel over the toast that swallowed the Undo tap.
                     let showsAdjust = showingImageControls && viewModel.overlayImage != nil
-                    VStack(spacing: 0) {
-                        AdjustPanel(viewModel: viewModel, isLocked: viewModel.isPropertiesLocked)
-                            .padding(.horizontal, 16)
-                            .padding(.bottom, showsAdjust ? 12 : 0)
-                            // Hidden: takes no height (doesn't push the toast up), draws nothing,
-                            // takes no touches
-                            .frame(height: showsAdjust ? nil : 0, alignment: .bottom)
-                            .opacity(showsAdjust ? 1 : 0)
-                            .offset(y: showsAdjust ? 0 : 24)
-                            .allowsHitTesting(showsAdjust)
-                            .accessibilityHidden(!showsAdjust)
-
-                        BottomDock(
-                            hasImage: viewModel.overlayImage != nil,
-                            isLocked: viewModel.isPropertiesLocked,
-                            isRecording: timelapse.isActive,
-                            isAdjustOpen: showingImageControls,
-                            onImport: { showingImagePicker = true },
-                            onLibrary: { viewModel.showingSavedImages = true },
-                            onLock: lock,
-                            onUnlock: unlock,
-                            onLockTapWhileLocked: holdToUnlockHint,
-                            onChangeImageWhileLocked: changeImageWhileLocked,
-                            onAdjust: {
-                                withAnimation(Theme.spring) { showingImageControls.toggle() }
-                                Haptics.light()
-                            },
-                            onCenter: {
-                                viewModel.centerImage()
-                                Haptics.light()
-                            },
-                            onSave: saveConfiguration,
-                            onShowTour: openTour,
-                            onRemove: removeImage,
-                            onLockedTap: lockedWarning
-                        )
+                    let panelMaxHeight = max(160, geometry.size.height - Self.dockReservedHeight - 12 - topChromeBottom)
+                    AdjustPanel(viewModel: viewModel, isLocked: viewModel.isPropertiesLocked, maxHeight: panelMaxHeight)
                         .padding(.horizontal, 16)
-                        .padding(.bottom, 8)
-                    }
+                        // Hidden: takes no height, draws nothing, takes no touches
+                        .frame(height: showsAdjust ? nil : 0, alignment: .bottom)
+                        .opacity(showsAdjust ? 1 : 0)
+                        .offset(y: showsAdjust ? 0 : 24)
+                        .allowsHitTesting(showsAdjust)
+                        .accessibilityHidden(!showsAdjust)
+                }
+                .padding(.bottom, Self.dockReservedHeight)
+                .opacity(showingControls ? 1 : 0)
+                .allowsHitTesting(showingControls)
+                .accessibilityHidden(isTourPresented)
+
+                // Dock pinned to the bottom safe area: its position never depends on the toast,
+                // the panel or the text size
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    BottomDock(
+                        hasImage: viewModel.overlayImage != nil,
+                        isLocked: viewModel.isPropertiesLocked,
+                        isRecording: timelapse.isActive,
+                        isAdjustOpen: showingImageControls,
+                        onImport: { showingImagePicker = true },
+                        onLibrary: { viewModel.showingSavedImages = true },
+                        onLock: lock,
+                        onUnlock: unlock,
+                        onLockTapWhileLocked: holdToUnlockHint,
+                        onChangeImageWhileLocked: changeImageWhileLocked,
+                        onAdjust: {
+                            withAnimation(Theme.spring) { showingImageControls.toggle() }
+                            Haptics.light()
+                        },
+                        onCenter: {
+                            viewModel.centerImage()
+                            Haptics.light()
+                        },
+                        onSave: saveConfiguration,
+                        onShowTour: openTour,
+                        onRemove: removeImage,
+                        onLockedTap: lockedWarning
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, Self.dockBottomPadding)
                 }
                 .opacity(showingControls ? 1 : 0)
                 .allowsHitTesting(showingControls)
@@ -264,6 +295,9 @@ struct ContentView: View {
                     onShowTour: openTour
                 )
                 .padding(.horizontal, 32)
+                // Never taller than the screen: an oversized card (large text) would grow the
+                // stack, which GeometryReader pins top-leading, pushing the dock off screen
+                .frame(maxHeight: geometry.size.height - 24)
                 .opacity(showsWelcome ? 1 : 0)
                 .scaleEffect(showsWelcome ? 1 : 0.96)
                 .allowsHitTesting(showsWelcome)
@@ -283,11 +317,13 @@ struct ContentView: View {
                 // Same spot and style as the welcome card; crossfades with it
                 TourCard(page: $tourPage, onFinish: finishTour)
                     .padding(.horizontal, 32)
+                    .frame(maxHeight: geometry.size.height - 24)
                     .opacity(isTourPresented ? 1 : 0)
                     .scaleEffect(isTourPresented ? 1 : 0.96)
                     .allowsHitTesting(isTourPresented)
                     .accessibilityHidden(!isTourPresented)
             }
+            .coordinateSpace(.named(Self.chromeSpace))
             .animation(Theme.spring, value: isTourPresented)
             .animation(Theme.spring, value: timelapse.phase)
             .animation(Theme.spring, value: showingImageControls)
@@ -403,6 +439,11 @@ struct ContentView: View {
     private func toggleControls() {
         // Nothing to hide for on the welcome screen: hiding the card there left a blank screen
         guard viewModel.overlayImage != nil else { return }
+        // With the Adjust panel open, a tap on the screen just closes the panel
+        if showingImageControls && showingControls {
+            withAnimation(Theme.spring) { showingImageControls = false }
+            return
+        }
         withAnimation(.easeInOut(duration: 0.3)) {
             showingControls.toggle()
             if !showingControls {
