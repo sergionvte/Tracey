@@ -16,6 +16,8 @@ struct ContentView: View {
     @State private var toast: ToastMessage? = nil
     /// Last toast shown; keeps the content while it fades out
     @State private var lastToast: ToastMessage? = nil
+    /// Plain toasts waiting behind a toast with a button
+    @State private var queuedToasts: [(message: ToastMessage, queuedAt: Date)] = []
     /// Where the toast is on screen (global), so the camera view ignores taps on an action toast
     @State private var toastFrame: CGRect = .zero
     /// The camera-access banner was dismissed (for this session)
@@ -121,6 +123,7 @@ struct ContentView: View {
                             CaptureModeSwitch(
                                 mode: viewModel.captureMode,
                                 isLocked: viewModel.isPropertiesLocked,
+                                isRecording: timelapse.isActive,
                                 onSelect: selectCaptureMode
                             )
                             .opacity(hasImage ? 1 : 0)
@@ -271,7 +274,8 @@ struct ContentView: View {
 
                 // Time-lapse status. Its own layer so it stays (at 80%) when the controls are
                 // hidden. Second row, left of the tool column: the top row has no room for it
-                // next to the Video/Photo switch (which grows with the lock glyph).
+                // next to the Video/Photo switch (which grows with the lock glyph). In immersive
+                // mode it moves up to the top-right corner instead of floating mid-screen.
                 let showsPill = timelapse.isActive
                 TimelapsePill(
                     controller: timelapse,
@@ -279,8 +283,8 @@ struct ContentView: View {
                     onTap: pillTapped
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                .padding(.top, 4 + 58)
-                .padding(.trailing, 16 + 48 + 12)
+                .padding(.top, showingControls ? 4 + 58 : 4)
+                .padding(.trailing, showingControls ? 16 + 48 + 12 : 16)
                 .opacity(showsPill ? (showingControls ? 1 : 0.8) : 0)
                 .allowsHitTesting(showsPill)
                 .accessibilityHidden(!showsPill || isTourPresented)
@@ -624,8 +628,7 @@ struct ContentView: View {
                 case .thermal: (icon, text) = ("thermometer.high", "Phone is too warm · time-lapse saved to Photos")
                 }
                 showToast(ToastMessage(icon: icon, text: text, tint: Theme.accent, duration: 8,
-                                       actionTitle: "Share", action: { shareFile(url) },
-                                       onExpire: { try? FileManager.default.removeItem(at: url) }))
+                                       actionTitle: "Share", action: { shareFile(url) }))
             case .tooShort:
                 Haptics.warning()
                 showToast(ToastMessage(icon: "exclamationmark.triangle.fill",
@@ -636,8 +639,7 @@ struct ContentView: View {
                     // Still keepable through the share sheet (Save to Files, AirDrop)
                     showToast(ToastMessage(icon: "exclamationmark.triangle.fill", text: "Couldn't save to Photos",
                                            tint: Theme.danger, duration: 8,
-                                           actionTitle: "Share", action: { shareFile(url) },
-                                           onExpire: { try? FileManager.default.removeItem(at: url) }))
+                                           actionTitle: "Share", action: { shareFile(url) }))
                 } else {
                     showToast(ToastMessage(icon: "exclamationmark.triangle.fill", text: "Couldn't save to Photos",
                                            tint: Theme.danger, duration: 3.5))
@@ -646,18 +648,17 @@ struct ContentView: View {
         }
     }
 
-    /// Share sheet for a finished clip; the temporary file is deleted when it closes.
+    /// Share sheet for a finished clip; the temporary file is deleted when it closes. (If Share
+    /// is never used, the file goes when the next recording starts or at the next launch.)
     private func shareFile(_ url: URL) {
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
         let window = UIApplication.shared.connectedScenes
             .compactMap { ($0 as? UIWindowScene)?.keyWindow }.first
-        guard var presenter = window?.rootViewController else {
-            try? FileManager.default.removeItem(at: url)
-            return
-        }
+        guard var presenter = window?.rootViewController else { return }
         while let presented = presenter.presentedViewController { presenter = presented }
         let sheet = UIActivityViewController(activityItems: [url], applicationActivities: nil)
         sheet.completionWithItemsHandler = { _, _, _, _ in
-            try? FileManager.default.removeItem(at: url)
+            if timelapse.lastClipURL == url { timelapse.discardLastClip() }
         }
         if let popover = sheet.popoverPresentationController, let view = presenter.view {
             popover.sourceView = view
@@ -668,13 +669,34 @@ struct ContentView: View {
 
     private func performToastAction() {
         guard let message = toast else { return }
-        toast = nil
+        dismissToast()
         message.action?()
     }
 
+    /// A toast with a button (Undo, Share) isn't replaced by a plain one: the plain one waits
+    /// until it's gone, so a Lock or mode toast can't take away Undo or Share.
     private func showToast(_ message: ToastMessage) {
-        // A toast replaced before it expired never gets its action used
-        if let previous = toast, previous.id != message.id { previous.onExpire?() }
+        if let current = toast, current.actionTitle != nil, message.actionTitle == nil {
+            queuedToasts.append((message, Date()))
+            if queuedToasts.count > 3 { queuedToasts.removeFirst() }
+            return
+        }
+        presentToast(message)
+    }
+
+    private func dismissToast() {
+        toast = nil
+        // Next queued toast, unless it's no longer relevant
+        while let next = queuedToasts.first {
+            queuedToasts.removeFirst()
+            if Date().timeIntervalSince(next.queuedAt) < 10 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { presentToast(next.message) }
+                break
+            }
+        }
+    }
+
+    private func presentToast(_ message: ToastMessage) {
         lastToast = message
         UIAccessibility.post(notification: .announcement, argument: message.text)
         // The countdown starts once the toast has actually animated in, not when it was
@@ -684,10 +706,7 @@ struct ContentView: View {
             toast = message
         } completion: {
             DispatchQueue.main.asyncAfter(deadline: .now() + message.duration) {
-                if toast?.id == message.id {
-                    toast = nil
-                    message.onExpire?()
-                }
+                if toast?.id == message.id { dismissToast() }
             }
         }
     }

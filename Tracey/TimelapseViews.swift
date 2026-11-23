@@ -109,7 +109,7 @@ struct TimelapsePill: View {
             Text(Self.clock(elapsed))
                 .font(.subheadline.weight(.semibold).monospacedDigit())
                 .foregroundStyle(.white)
-            Text("· \(Self.clock(TimeInterval(controller.clipSeconds)))")
+            Text("· \(Self.clipLength(controller.clipDuration))")
                 .font(.footnote.monospacedDigit())
                 .foregroundStyle(.white.opacity(0.7))
         }
@@ -134,6 +134,11 @@ struct TimelapsePill: View {
             : String(format: "%d:%02d", minutes, seconds)
     }
 
+    /// "0.6 s" under a minute (each second of drawing adds 1/60 s), then "1:02"
+    static func clipLength(_ duration: TimeInterval) -> String {
+        duration < 60 ? String(format: "%.1f s", duration) : clock(duration)
+    }
+
     /// "12 minutes 34 seconds"
     private static func spoken(_ interval: TimeInterval) -> String {
         let total = max(0, Int(interval))
@@ -148,7 +153,10 @@ struct TimelapsePill: View {
             return "Saving time-lapse"
         default:
             let state = controller.isPaused ? "Time-lapse paused" : "Time-lapse recording"
-            return "\(state), \(Self.spoken(elapsed)), clip \(Self.spoken(TimeInterval(controller.clipSeconds)))"
+            let clip = controller.clipDuration < 60
+                ? String(format: "%.1f seconds", controller.clipDuration)
+                : Self.spoken(controller.clipDuration)
+            return "\(state), \(Self.spoken(elapsed)), clip \(clip)"
         }
     }
 }

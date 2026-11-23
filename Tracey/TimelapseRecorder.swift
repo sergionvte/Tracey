@@ -50,10 +50,32 @@ final class TimelapseRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDel
     private var isStopped = false
     private var didFail = false
 
+    /// Temporary clips live here (cleared on launch)
+    static var directory: URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("Timelapses", isDirectory: true)
+    }
+
+    private let startDate = Date()
+
     override init() {
-        url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("\(Self.filePrefix)\(UUID().uuidString).mov")
+        try? FileManager.default.createDirectory(at: Self.directory, withIntermediateDirectories: true)
+        url = Self.directory.appendingPathComponent("\(Self.filePrefix)\(UUID().uuidString).mov")
         super.init()
+    }
+
+    /// "Tracey time-lapse 2026-11-22 17.15.mov": the name people see when sharing
+    private func friendlyURL() -> URL {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH.mm"
+        let base = "Tracey time-lapse \(formatter.string(from: startDate))"
+        var candidate = Self.directory.appendingPathComponent("\(base).mov")
+        var index = 2
+        while FileManager.default.fileExists(atPath: candidate.path) {
+            candidate = Self.directory.appendingPathComponent("\(base) (\(index)).mov")
+            index += 1
+        }
+        return candidate
     }
 
     /// Frames written so far (any thread)
@@ -205,23 +227,29 @@ final class TimelapseRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDel
             }
             input.markAsFinished()
             let transferSession = transferSession
+            let namedURL = friendlyURL()
             writer.finishWriting {
                 let ok = writer.status == .completed
                 if !ok { print("Time-lapse finish failed: \(String(describing: writer.error))") }
                 if let transferSession { VTPixelTransferSessionInvalidate(transferSession) }
-                let keptURL = FileManager.default.fileExists(atPath: fileURL.path) ? fileURL : nil
+                // Give the file a readable name for the share sheet
+                var finalURL = fileURL
+                if (try? FileManager.default.moveItem(at: fileURL, to: namedURL)) != nil { finalURL = namedURL }
+                let keptURL = FileManager.default.fileExists(atPath: finalURL.path) ? finalURL : nil
                 DispatchQueue.main.async {
-                    completion(ok ? .finished(fileURL) : .failed(keptURL))
+                    completion(ok ? .finished(finalURL) : .failed(keptURL))
                 }
             }
         }
     }
 
-    /// Removes leftovers from earlier runs (e.g. the app was killed while recording).
+    /// Removes leftovers from earlier runs (killed while recording, a clip never shared).
     static func removeStaleFiles() {
         DispatchQueue.global(qos: .utility).async {
-            let directory = FileManager.default.temporaryDirectory
-            let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
+            try? FileManager.default.removeItem(at: directory)
+            // Older builds wrote straight into tmp
+            let tmp = FileManager.default.temporaryDirectory
+            let files = (try? FileManager.default.contentsOfDirectory(at: tmp, includingPropertiesForKeys: nil)) ?? []
             for file in files where file.lastPathComponent.hasPrefix(filePrefix) && file.pathExtension == "mov" {
                 try? FileManager.default.removeItem(at: file)
             }

@@ -41,6 +41,10 @@ final class TimelapseController: ObservableObject {
     /// Recording resumed after a pause
     var onResumed: (() -> Void)?
 
+    /// The last finished clip, kept for Share until the next recording starts, the share sheet
+    /// closes, or the next launch (a toast replacing the Share toast must not delete it)
+    private(set) var lastClipURL: URL?
+
     private var recorder: TimelapseRecorder?
     private weak var cameraView: CameraUIView?
     private var accumulated: TimeInterval = 0
@@ -65,8 +69,14 @@ final class TimelapseController: ObservableObject {
     }
 
     /// Length of the clip so far, in seconds of playback
-    var clipSeconds: Int {
-        (recorder?.framesWritten ?? 0) / Int(TimelapseRecorder.playbackFPS)
+    var clipDuration: TimeInterval {
+        Double(recorder?.framesWritten ?? 0) / Double(TimelapseRecorder.playbackFPS)
+    }
+
+    /// Deletes the last finished clip (after sharing, or when a new recording starts)
+    func discardLastClip() {
+        if let lastClipURL { try? FileManager.default.removeItem(at: lastClipURL) }
+        lastClipURL = nil
     }
 
     static func availableSpace() -> Int64? {
@@ -79,6 +89,7 @@ final class TimelapseController: ObservableObject {
 
     func start(cameraView: CameraUIView, interfaceOrientation: UIInterfaceOrientation) {
         guard phase == .idle else { return }
+        discardLastClip()
         let recorder = TimelapseRecorder()
         recorder.onFrameLimitReached = { [weak self] in self?.autoStop(.timeLimit) }
         recorder.isPaused = isBackgrounded || isInterrupted
@@ -135,10 +146,12 @@ final class TimelapseController: ObservableObject {
                     completion(.tooShort)
                 case .failed(let url):
                     self?.reset()
+                    self?.lastClipURL = url
                     completion(.failed(url))
                 case .finished(let url):
                     Self.saveToPhotos(url) { success in
                         self?.reset()
+                        self?.lastClipURL = url
                         completion(success ? .saved(url) : .failed(url))
                     }
                 }

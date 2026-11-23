@@ -29,10 +29,13 @@ extension CameraCaptureMode {
 struct CaptureModeSwitch: View {
     let mode: CameraCaptureMode
     let isLocked: Bool
+    /// Recording a time-lapse: the clip's size is fixed, so the switch is blocked
+    var isRecording = false
     let onSelect: (CameraCaptureMode) -> Void
     @Namespace private var selection
 
     var body: some View {
+        let isBlocked = isLocked || isRecording
         HStack(spacing: 2) {
             ForEach(CameraCaptureMode.allCases, id: \.self) { option in
                 let isSelected = option == mode
@@ -46,8 +49,8 @@ struct CaptureModeSwitch: View {
                             .font(.system(size: 14, weight: .semibold))
                     }
                     // Locked: only the segments dim (the glass stays readable) + a lock glyph
-                    .foregroundStyle(isSelected ? Color.black.opacity(isLocked ? 0.6 : 1)
-                                                : Color.white.opacity(isLocked ? 0.4 : 0.85))
+                    .foregroundStyle(isSelected ? Color.black.opacity(isBlocked ? 0.6 : 1)
+                                                : Color.white.opacity(isBlocked ? 0.4 : 0.85))
                     .shadow(color: .black.opacity(isSelected ? 0 : 0.45), radius: 1.5, x: 0, y: 1)
                     .padding(.horizontal, 14)
                     // 44 pt tall touch target; the selected pill stays 36 pt
@@ -55,7 +58,7 @@ struct CaptureModeSwitch: View {
                     .background {
                         if isSelected {
                             Capsule()
-                                .fill(Color.white.opacity(isLocked ? 0.55 : 1))
+                                .fill(Color.white.opacity(isBlocked ? 0.55 : 1))
                                 .padding(.vertical, 4)
                                 .matchedGeometryEffect(id: "selected", in: selection)
                         }
@@ -65,22 +68,25 @@ struct CaptureModeSwitch: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(option.detail)
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
-                .accessibilityHint(isLocked ? "Unlock to change the camera mode." : "")
+                .accessibilityHint(isLocked ? "Unlock to change the camera mode."
+                                   : isRecording ? "Stop the time-lapse to change the camera mode." : "")
             }
 
-            // Collapses to nothing while unlocked (kept in place, no insertion)
-            Image(systemName: "lock.fill")
+            // Why it's blocked: lock, or time-lapse. Collapses to nothing otherwise (kept in
+            // place, no insertion)
+            Image(systemName: isLocked ? "lock.fill" : "timelapse")
                 .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(Theme.accent)
+                .foregroundStyle(isLocked ? Theme.accent : Theme.danger)
                 .glyphShadow()
-                .frame(width: isLocked ? 22 : 0)
-                .opacity(isLocked ? 1 : 0)
+                .frame(width: isBlocked ? 22 : 0)
+                .opacity(isBlocked ? 1 : 0)
                 .accessibilityHidden(true)
         }
         .padding(.horizontal, 4)
         .glassSurface(Capsule(), tint: Theme.controlTint)
         .animation(Theme.spring, value: mode)
         .animation(Theme.spring, value: isLocked)
+        .animation(Theme.spring, value: isRecording)
     }
 }
 
