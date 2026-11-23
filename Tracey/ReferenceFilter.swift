@@ -127,7 +127,9 @@ final class ReferenceFilterRenderer {
         let average = gray.applyingFilter("CIAreaAverage", parameters: [kCIInputExtentKey: CIVector(cgRect: extent)])
         context.render(average, toBitmap: &pixel, rowBytes: 16, bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
                        format: .RGBAf, colorSpace: nil)
-        let mean = CGFloat(pixel[0].isFinite ? min(max(pixel[0], 0.05), 0.95) : 0.5)
+        // Clamped so a mostly white reference (line art) keeps a white background and a very
+        // dark one isn't blown out
+        let mean = CGFloat(pixel[0].isFinite ? min(max(pixel[0], 0.3), 0.7) : 0.5)
         let contrast: CGFloat = 1.6
         let bias = 0.5 - contrast * mean
         return gray
