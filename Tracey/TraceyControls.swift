@@ -601,30 +601,28 @@ private struct MirrorRow: View {
         .accessibilityHidden(true)
     }
 
+    /// Text only, at the size of the grid's segments right below, so the two rows read alike
     private var toggles: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             toggle(String(localized: "Horizontal"),
                    accessibility: String(localized: "Mirror horizontally"),
-                   icon: "arrow.left.and.right.righttriangle.left.righttriangle.right",
                    isOn: horizontal, action: onHorizontal)
             toggle(String(localized: "Vertical"),
                    accessibility: String(localized: "Mirror vertically"),
-                   icon: "arrow.up.and.down.righttriangle.up.righttriangle.down",
                    isOn: vertical, action: onVertical)
         }
     }
 
-    private func toggle(_ title: String, accessibility: String, icon: String, isOn: Bool,
+    private func toggle(_ title: String, accessibility: String, isOn: Bool,
                         action: @escaping () -> Void) -> some View {
         Button {
             Haptics.light()
             action()
         } label: {
-            Label(title, systemImage: icon)
-                .font(.subheadline.weight(.semibold))
-                .labelStyle(.titleAndIcon)
+            Text(title)
+                .font(.footnote.weight(.semibold))
                 .lineLimit(1)
-                .minimumScaleFactor(0.75)
+                .padding(.horizontal, 8)
                 .foregroundStyle(isOn ? Color.black : Color.white)
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .background(isOn ? Theme.accent : Color.white.opacity(0.12), in: Capsule())
