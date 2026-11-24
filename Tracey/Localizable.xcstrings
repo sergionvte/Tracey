@@ -103,6 +103,26 @@
         }
       }
     },
+    "Amber" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ámbar"
+          }
+        }
+      }
+    },
+    "App Icon" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ícono de la app"
+          }
+        }
+      }
+    },
     "B&W" : {
       "localizations" : {
         "es" : {
@@ -213,6 +233,16 @@
         }
       }
     },
+    "Couldn't change the icon" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo cambiar el ícono"
+          }
+        }
+      }
+    },
     "Couldn't save the image" : {
       "localizations" : {
         "es" : {
@@ -259,6 +289,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cerrar"
+          }
+        }
+      }
+    },
+    "Done" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listo"
           }
         }
       }
@@ -343,6 +383,26 @@
         }
       }
     },
+    "Graph paper and a classic pencil" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Papel cuadriculado y un lápiz clásico"
+          }
+        }
+      }
+    },
+    "Graphite" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grafito"
+          }
+        }
+      }
+    },
     "Grid" : {
       "localizations" : {
         "es" : {
@@ -413,6 +473,26 @@
         }
       }
     },
+    "Included with your purchase, like everything in Tracey." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Incluida en tu compra, como todo en Tracey."
+          }
+        }
+      }
+    },
+    "Indigo" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Índigo"
+          }
+        }
+      }
+    },
     "Library" : {
       "localizations" : {
         "es" : {
@@ -453,6 +533,16 @@
         }
       }
     },
+    "Mint" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menta"
+          }
+        }
+      }
+    },
     "Mirror image" : {
       "localizations" : {
         "es" : {
@@ -483,6 +573,16 @@
         }
       }
     },
+    "No ads, no account, no tracking. Your images stay on your device." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin anuncios, sin cuenta y sin rastreo. Tus imágenes se quedan en tu dispositivo."
+          }
+        }
+      }
+    },
     "No saved references" : {
       "localizations" : {
         "es" : {
@@ -499,6 +599,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No hay suficiente espacio"
+          }
+        }
+      }
+    },
+    "Notebook" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuaderno"
           }
         }
       }
@@ -669,6 +779,16 @@
         }
       }
     },
+    "Privacy Policy" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Política de privacidad"
+          }
+        }
+      }
+    },
     "Ready to trace" : {
       "localizations" : {
         "es" : {
@@ -735,6 +855,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Restablecer vista"
+          }
+        }
+      }
+    },
+    "Rose" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rosa"
           }
         }
       }
@@ -849,6 +979,16 @@
         }
       }
     },
+    "Special Edition" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edición especial"
+          }
+        }
+      }
+    },
     "Start time-lapse" : {
       "localizations" : {
         "es" : {
@@ -895,6 +1035,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Almacenamiento casi lleno · time-lapse guardado en Fotos"
+          }
+        }
+      }
+    },
+    "Support" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Soporte"
           }
         }
       }
@@ -1115,6 +1265,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Usa “Guardar en biblioteca” en el menú ⋯ para conservar una imagen con su posición, tamaño y opacidad."
+          }
+        }
+      }
+    },
+    "Version" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Versión"
           }
         }
       }

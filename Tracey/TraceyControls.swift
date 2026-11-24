@@ -181,6 +181,7 @@ struct BottomDock: View {
     let onCenter: () -> Void
     let onSave: () -> Void
     let onShowTour: () -> Void
+    let onShowSettings: () -> Void
     let onRemove: () -> Void
     let onLockedTap: () -> Void
 
@@ -242,6 +243,7 @@ struct BottomDock: View {
                 .disabled(isLocked)
             Button("Save to Library", systemImage: "square.and.arrow.down", action: onSave)
             Button("How to Use Tracey", systemImage: "questionmark.circle", action: onShowTour)
+            Button("Settings", systemImage: "gearshape", action: onShowSettings)
             Divider()
             Button("Remove Image", systemImage: "trash", role: .destructive, action: onRemove)
                 .disabled(isLocked || isRecording)
@@ -666,6 +668,7 @@ struct EmptyStateCard: View {
     let onImport: () -> Void
     let onLibrary: () -> Void
     let onShowTour: () -> Void
+    let onShowSettings: () -> Void
     /// Matches the tour card's height so the crossfade doesn't jump
     var minHeight: CGFloat = 0
     /// Reports the card's own height (before `minHeight`)
@@ -731,19 +734,47 @@ struct EmptyStateCard: View {
                 .buttonStyle(.plain)
                 .glassSurface(Capsule(), interactive: true)
 
-                Button(action: onShowTour) {
-                    Text("How Tracey works")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.8))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
-                        .contentShape(Rectangle())
+                // Side by side; stacked when large text doesn't fit on one line
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 4) { footerLinks }
+                    VStack(spacing: 0) { footerLinks }
                 }
-                .buttonStyle(.plain)
             }
         }
         .padding(24)
     }
+
+    @ViewBuilder
+    private var footerLinks: some View {
+        Button(action: onShowTour) {
+            footerLabel("How Tracey works")
+        }
+        .buttonStyle(.plain)
+        Button(action: onShowSettings) {
+            footerLabel("Settings")
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func footerLabel(_ title: LocalizedStringKey) -> some View {
+        Text(title)
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(.white.opacity(0.8))
+            .fixedSize()
+            .padding(.horizontal, 8)
+            .frame(height: 44)
+            .contentShape(Rectangle())
+    }
+}
+
+/// Public pages, opened in the language the app is running in
+enum AppLinks {
+    private static let base = "https://sergionvte.github.io/Tracey/"
+    private static var anchor: String {
+        Bundle.main.preferredLocalizations.first == "es" ? "" : "#en"
+    }
+    static var privacy: URL { URL(string: base + "privacidad.html" + anchor)! }
+    static var support: URL { URL(string: base + "soporte.html" + anchor)! }
 }
 
 // MARK: - Camera access

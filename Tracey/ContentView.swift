@@ -9,6 +9,9 @@ struct ContentView: View {
     @State private var timelapseAlert: TimelapseAlert?
     @Environment(\.scenePhase) private var scenePhase
     @State private var showingImagePicker = false
+    @State private var showingSettings = false
+    /// "How to Use Tracey" from Settings: the tour opens once the sheet is gone
+    @State private var tourAfterSettings = false
     @State private var showingControls = true
     @State private var showingImageControls = false // New state for image controls
     @State private var cameraUIView: CameraUIView? = nil // Reference to camera view
@@ -262,6 +265,7 @@ struct ContentView: View {
                         },
                         onSave: saveConfiguration,
                         onShowTour: openTour,
+                        onShowSettings: { showingSettings = true },
                         onRemove: removeImage,
                         onLockedTap: lockedWarning
                     )
@@ -302,6 +306,7 @@ struct ContentView: View {
                     onImport: { showingImagePicker = true },
                     onLibrary: { viewModel.showingSavedImages = true },
                     onShowTour: openTour,
+                    onShowSettings: { showingSettings = true },
                     minHeight: sharedCardHeight,
                     onNaturalHeight: { welcomeCardHeight = $0 }
                 )
@@ -359,6 +364,13 @@ struct ContentView: View {
             timelapse.onResumed = {
                 showToast(ToastMessage(icon: "timelapse", text: String(localized: "Time-lapse resumed")))
             }
+            #if DEBUG
+            // UI tests and screenshots: start with a reference without going through the picker
+            if ProcessInfo.processInfo.arguments.contains("-TraceySampleReference"),
+               viewModel.overlayImage == nil {
+                viewModel.selectedImageFromGallery = UIImage(named: AppIconChoice.notebook.previewImageName)
+            }
+            #endif
         }
         .onDisappear {
             // Restore normal behavior when the app is closed
@@ -405,6 +417,14 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(selectedImage: $viewModel.selectedImageFromGallery) // Use the property that clears loadedImageName
+        }
+        .sheet(isPresented: $showingSettings, onDismiss: {
+            if tourAfterSettings {
+                tourAfterSettings = false
+                openTour()
+            }
+        }) {
+            SettingsView(onShowTour: { tourAfterSettings = true })
         }
         .sheet(isPresented: $viewModel.showingSavedImages, onDismiss: {
             showingImageControls = false // Ensure the main menu can be opened

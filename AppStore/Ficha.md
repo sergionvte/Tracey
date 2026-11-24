@@ -11,9 +11,9 @@ Textos listos para pegar en App Store Connect. Los límites entre paréntesis so
 Tracey: Calca con tu cámara
 ```
 
-**Subtítulo** (30)
+**Subtítulo** (30) — sin precios: Apple no permite información de precio en el nombre, el subtítulo, las palabras clave ni las capturas (regla 2.3.7). El "pago único" va en el texto promocional y en la descripción.
 ```
-Calca dibujos sin suscripción
+Dibuja y calca sobre papel
 ```
 
 **Texto promocional** (170) — se puede cambiar sin mandar una versión nueva
@@ -48,7 +48,7 @@ HERRAMIENTAS PARA CALCAR MEJOR
 • Modo video para una vista más fluida o modo foto para un encuadre más amplio.
 
 TIME-LAPSE DE TU DIBUJO
-Graba todo tu proceso y Tracey lo convierte en un video acelerado que se guarda en Fotos, listo para compartir en redes.
+Graba todo tu proceso, hasta 3 horas, y Tracey lo convierte en un video 60 veces más rápido que se guarda en Fotos. El video muestra solo tu hoja y tu trazo, sin la imagen de referencia encima y sin marca de agua, listo para compartir en redes.
 
 TU BIBLIOTECA
 Guarda tus referencias con su posición, tamaño y opacidad para retomar un dibujo justo donde lo dejaste.
@@ -75,7 +75,7 @@ Tracey: Trace with your camera
 
 **Subtitle** (30)
 ```
-Trace art · No subscription
+Trace any image onto paper
 ```
 
 **Promotional text** (170)
@@ -110,7 +110,7 @@ TOOLS FOR CLEANER TRACING
 • Video mode for a smoother preview or photo mode for a wider frame.
 
 TIME-LAPSE OF YOUR DRAWING
-Record your whole process and Tracey turns it into a sped-up video saved to Photos, ready to share.
+Record your whole process, up to 3 hours, and Tracey turns it into a 60× sped-up video saved to Photos. It shows only your paper and your lines, with no reference overlay and no watermark, ready to share.
 
 YOUR LIBRARY
 Save references with their position, size and opacity to pick up a drawing right where you left off.
@@ -119,6 +119,50 @@ PRIVATE BY DESIGN
 Tracey collects no data. Your images stay on your iPhone, the camera is only used live so you can trace, and the app works offline.
 
 Available in English and Spanish, for iPhone and iPad.
+```
+
+---
+
+## Qué hace distinta a Tracey
+
+En la App Store hay muchas apps para calcar. Casi todas son gratis para descargar y cobran con suscripción semanal, mensual o anual (de 3.99 a 6.99 USD por semana en varias). Además meten catálogos de plantillas detrás de un muro de pago y piden suscribirse incluso para usar tus propias fotos o grabar. Tracey compite con el producto, no con el catálogo:
+
+| | Lo típico en la categoría | Tracey |
+|---|---|---|
+| Modelo de pago | Gratis + suscripción semanal o anual, prueba que se renueva sola | Un solo pago, todo incluido |
+| Tus propias fotos | A veces solo con suscripción | Siempre, es el centro de la app |
+| Plantillas | Catálogo como gancho para cobrar | No tiene: usas tus imágenes, nada está bloqueado |
+| Anuncios y cuenta | Comunes | Ninguno |
+| Datos | Analíticas y SDK de terceros | No recopila nada y funciona sin internet |
+| Bloqueo de la imagen | Un interruptor que se desactiva con un toque | Mantener presionado para desbloquear, así un roce mientras dibujas no mueve la imagen. La opacidad se sigue ajustando con la imagen bloqueada |
+| Grabación | De pago, o con marca de agua | Time-lapse de hasta 3 h, 60× más rápido, sin marca de agua. Graba solo la hoja y el trazo, sin la referencia encima |
+| Referencia difícil de ver | Solo opacidad | Filtros Blanco y negro, Alto contraste y Contorno (convierte fotos en líneas y se adapta a fotos oscuras o con mucho detalle) |
+| Proporciones | Grid fijo en pantalla, si lo hay | Cuadrícula 3×3 o 4×4 pegada a la imagen: se mueve, escala y gira con ella |
+| Retomar un dibujo | Volver a acomodar todo | La Biblioteca guarda posición, tamaño, opacidad y filtro de cada referencia |
+| Cámara | Una sola vista | Modo video (más fluido) o modo foto (encuadre más amplio), enfoque al centro, linterna y espejo |
+| Diseño | Plantillas genéricas | Interfaz nativa de iOS (Liquid Glass en iOS 26), VoiceOver, texto dinámico, español e inglés |
+
+Con esto se arman los mensajes de marketing (descripción, capturas y videos) y las notas para el revisor.
+
+---
+
+## Notas para el revisor (App Review Information → Notes)
+
+Van en inglés, que es lo que lee el equipo de revisión. No hace falta cuenta de demostración.
+
+```
+Tracey is a tracing camera: the user picks one of their own images, it floats over the live camera view, and they trace it onto real paper.
+
+No account, no sign-in, no ads, no in-app purchases and no network access. The app collects no data. All features are included in the one-time purchase.
+
+How to test (best on a device, pointing the camera at a sheet of paper on a table):
+1. Tap "Choose Image" and pick any photo (system photo picker, no library permission needed).
+2. Drag, pinch and rotate the image, then tap the lock button. Touch and hold the lock for about a second to unlock; a single tap only shows a hint. This is intentional so a stray touch while drawing can't move the image.
+3. Tap the screen to hide or show the controls. Use the Adjust button to change opacity (works while locked), the filter (Outline turns a photo into line art) and the grid (attached to the image).
+4. Time-lapse: tap the record button and draw for at least 20 seconds, then stop. The video is saved to Photos (add-only permission). It shows only the paper and the drawing, without the reference overlay.
+5. The ⋯ menu has Save to Library, How to Use Tracey, Support and Privacy Policy.
+
+What sets Tracey apart from other tracing apps: a single upfront price with nothing locked behind subscriptions or template catalogs, a press-and-hold lock built for real drawing sessions, reference filters (Black & White, High Contrast, Outline), a grid attached to the image, a library that remembers each reference's position, size and opacity, and a watermark-free time-lapse that records only the paper. The interface is native SwiftUI and is fully localized in English and Spanish, with VoiceOver labels and Dynamic Type support.
 ```
 
 ---
@@ -142,6 +186,6 @@ Available in English and Spanish, for iPhone and iPad.
 2. El filtro Contorno sobre una foto. Texto: **"Convierte fotos en líneas"**
 3. El time-lapse terminado. Texto: **"Graba tu proceso"**
 4. Ajustes de opacidad y la cuadrícula. Texto: **"Proporciones exactas"**
-5. Un fondo liso con letras grandes. Texto: **"Un solo pago. Sin suscripción."**
+5. Un fondo liso con letras grandes. Texto: **"Sin anuncios. Sin cuenta. Sin internet."** (Nada de precios en las capturas, por la regla 2.3.7.)
 
 Tamaños obligatorios: iPhone 6.9" (1320 × 2868) y, como la app también es para iPad, iPad 13" (2064 × 2752).
