@@ -44,6 +44,7 @@ struct OverlayRenderState: Equatable {
     var rotation: Double // degrees, clockwise
     var offset: CGSize
     var isFlipped: Bool
+    var isFlippedVertically: Bool = false
     /// Grid over the image: 0 = off, otherwise divisions per side (3 or 4)
     var gridDivisions: Int = 0
 }
@@ -446,7 +447,8 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
         )
         // flip → scale → rotate, all about the image center
         let flipScaleX = (state.isFlipped ? -1 : 1) * state.scale
-        overlayImageView.transform = CGAffineTransform(scaleX: flipScaleX, y: state.scale)
+        let flipScaleY = (state.isFlippedVertically ? -1 : 1) * state.scale
+        overlayImageView.transform = CGAffineTransform(scaleX: flipScaleX, y: flipScaleY)
             .concatenating(CGAffineTransform(rotationAngle: CGFloat(state.rotation) * .pi / 180))
         overlayImageView.alpha = CGFloat(state.opacity)
         layoutGrid(state)

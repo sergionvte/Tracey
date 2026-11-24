@@ -1,6 +1,34 @@
+import Foundation
 import Testing
 import UIKit
 @testable import Tracey
+
+@Test func newReferencesStartHalfTransparent() {
+    #expect(CameraViewModel.defaultOpacity == 0.5)
+}
+
+struct SavedConfigurationMirrorTests {
+
+    @Test func referencesSavedBeforeVerticalMirrorLoadUnmirrored() throws {
+        // A save from before the vertical mirror existed: no isFlippedVertically key
+        let json = """
+        {"id":"9A0B6B32-3C3F-4C7E-9B7B-2D6A4B2F1E11","imageName":"a.jpg","opacity":0.6,"scale":1,
+         "rotation":0,"offsetX":0,"offsetY":0,"isFlipped":true,"dateCreated":0,"cameraZoom":1}
+        """
+        let config = try JSONDecoder().decode(SavedImageConfiguration.self, from: Data(json.utf8))
+        #expect(config.isFlipped)
+        #expect(config.isFlippedVertically == false)
+    }
+
+    @Test func verticalMirrorSurvivesSaving() throws {
+        let saved = SavedImageConfiguration(imageName: "a.jpg", opacity: 0.6, scale: 1, rotation: 0,
+                                            isFlipped: false, isFlippedVertically: true)
+        let data = try JSONEncoder().encode(saved)
+        let loaded = try JSONDecoder().decode(SavedImageConfiguration.self, from: data)
+        #expect(loaded.isFlippedVertically)
+        #expect(!loaded.isFlipped)
+    }
+}
 
 struct AppIconChoiceTests {
 

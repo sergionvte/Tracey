@@ -99,14 +99,10 @@ struct ToolColumn: View {
     let onRecord: () -> Void
     let onRecordWhileDenied: () -> Void
     let isTorchOn: Bool
-    let isFlipped: Bool
     let hasImage: Bool
-    let isLocked: Bool
     let showsResetView: Bool
     let onFocus: () -> Void
     let onTorch: () -> Void
-    let onFlip: () -> Void
-    let onLockedTap: () -> Void
     let onResetView: () -> Void
 
     var body: some View {
@@ -134,16 +130,7 @@ struct ToolColumn: View {
                         action: onTorch
                     )
                     .transition(.scale.combined(with: .opacity))
-
-                    GlassIconButton(
-                        systemName: "arrow.left.and.right.righttriangle.left.righttriangle.right",
-                        label: String(localized: "Mirror image"),
-                        isActive: isFlipped,
-                        isEnabled: !isLocked,
-                        onDisabledTap: onLockedTap,
-                        action: onFlip
-                    )
-                    .transition(.scale.combined(with: .opacity))
+                    // Mirroring lives in the Adjust panel, next to size and rotation
                 }
 
                 if showsResetView {
@@ -400,7 +387,7 @@ struct AdjustPanel: View {
                 icon: "circle.lefthalf.filled",
                 title: String(localized: "Opacity"),
                 value: "\(Int(viewModel.imageOpacity * 100))%",
-                onReset: { viewModel.imageOpacity = 0.6 }
+                onReset: { viewModel.imageOpacity = CameraViewModel.defaultOpacity }
             ) {
                 Slider(value: $viewModel.imageOpacity, in: 0...1)
             }
@@ -429,6 +416,13 @@ struct AdjustPanel: View {
                         set: { viewModel.imageRotation = $0 < 0 ? $0 + 360 : $0 }
                     ), in: -180...180)
                 }
+
+                MirrorRow(
+                    horizontal: viewModel.isFlipped,
+                    vertical: viewModel.isFlippedVertically,
+                    onHorizontal: { viewModel.flipOverlayImage() },
+                    onVertical: { viewModel.flipOverlayImageVertically() }
+                )
             }
             .disabled(isLocked)
             .opacity(isLocked ? 0.45 : 1)
@@ -566,6 +560,79 @@ private struct GridRow: View {
         .pickerStyle(.segmented)
         .controlSize(.large)
         .frame(maxWidth: .infinity, minHeight: 44)
+    }
+}
+
+/// Two independent toggles: mirror left↔right and top↔bottom
+private struct MirrorRow: View {
+    let horizontal: Bool
+    let vertical: Bool
+    let onHorizontal: () -> Void
+    let onVertical: () -> Void
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    var body: some View {
+        Group {
+            if typeSize >= .xLarge {
+                VStack(alignment: .leading, spacing: 6) {
+                    label
+                    toggles
+                }
+            } else {
+                HStack(spacing: 10) {
+                    label
+                    toggles
+                }
+            }
+        }
+    }
+
+    private var label: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "rectangle.on.rectangle.angled")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.7))
+                .frame(width: 20)
+            Text("Mirror")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.white)
+                .frame(width: 66, alignment: .leading)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private var toggles: some View {
+        HStack(spacing: 8) {
+            toggle(String(localized: "Horizontal"),
+                   accessibility: String(localized: "Mirror horizontally"),
+                   icon: "arrow.left.and.right.righttriangle.left.righttriangle.right",
+                   isOn: horizontal, action: onHorizontal)
+            toggle(String(localized: "Vertical"),
+                   accessibility: String(localized: "Mirror vertically"),
+                   icon: "arrow.up.and.down.righttriangle.up.righttriangle.down",
+                   isOn: vertical, action: onVertical)
+        }
+    }
+
+    private func toggle(_ title: String, accessibility: String, icon: String, isOn: Bool,
+                        action: @escaping () -> Void) -> some View {
+        Button {
+            Haptics.light()
+            action()
+        } label: {
+            Label(title, systemImage: icon)
+                .font(.subheadline.weight(.semibold))
+                .labelStyle(.titleAndIcon)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .foregroundStyle(isOn ? Color.black : Color.white)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(isOn ? Theme.accent : Color.white.opacity(0.12), in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibility)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }
 

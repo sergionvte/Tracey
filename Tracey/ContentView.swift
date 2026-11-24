@@ -82,6 +82,7 @@ struct ContentView: View {
                         rotation: viewModel.imageRotation,
                         offset: viewModel.imageOffset,
                         isFlipped: viewModel.isFlipped,
+                        isFlippedVertically: viewModel.isFlippedVertically,
                         gridDivisions: viewModel.gridDivisions
                     ),
                     overlayLayoutRect: CGRect(
@@ -161,9 +162,7 @@ struct ContentView: View {
                                 showToast(ToastMessage(icon: "video.slash.fill", text: String(localized: "Camera access is off"), tint: Theme.accent))
                             },
                             isTorchOn: viewModel.isTorchOn,
-                            isFlipped: viewModel.isFlipped,
                             hasImage: viewModel.overlayImage != nil,
-                            isLocked: viewModel.isPropertiesLocked,
                             showsResetView: viewModel.isPropertiesLocked && viewModel.isViewportTransformed,
                             onFocus: {
                                 cameraUIView?.focusAtCenter()
@@ -173,11 +172,6 @@ struct ContentView: View {
                                 viewModel.toggleTorch()
                                 Haptics.light()
                             },
-                            onFlip: {
-                                viewModel.flipOverlayImage()
-                                Haptics.light()
-                            },
-                            onLockedTap: lockedWarning,
                             onResetView: {
                                 viewModel.resetViewport()
                                 Haptics.light()

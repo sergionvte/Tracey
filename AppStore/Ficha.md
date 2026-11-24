@@ -44,7 +44,8 @@ HERRAMIENTAS PARA CALCAR MEJOR
 • Bloqueo firme: la imagen no se mueve aunque toques la pantalla. Para desbloquear, mantén presionado el candado.
 • Filtros de referencia: Original, Blanco y negro, Alto contraste y Contorno, que convierte cualquier foto en líneas fáciles de seguir.
 • Cuadrícula de 3×3 o 4×4 pegada a la imagen, para proporciones exactas.
-• Linterna, enfoque al centro y modo espejo.
+• Espejo horizontal y vertical, para calcar la imagen al revés o de cabeza.
+• Linterna y enfoque al centro.
 • Modo video para una vista más fluida o modo foto para un encuadre más amplio.
 
 TIME-LAPSE DE TU DIBUJO
@@ -106,7 +107,8 @@ TOOLS FOR CLEANER TRACING
 • A firm lock: the image stays put when you touch the screen. Touch and hold the lock to unlock.
 • Reference filters: Original, Black and white, High contrast and Outline, which turns any photo into easy-to-follow lines.
 • A 3×3 or 4×4 grid attached to the image for accurate proportions.
-• Flashlight, focus on center and mirror mode.
+• Horizontal and vertical mirror, to trace the image flipped or upside down.
+• Flashlight and focus on center.
 • Video mode for a smoother preview or photo mode for a wider frame.
 
 TIME-LAPSE OF YOUR DRAWING
@@ -139,7 +141,7 @@ En la App Store hay muchas apps para calcar. Casi todas son gratis para descarga
 | Referencia difícil de ver | Solo opacidad | Filtros Blanco y negro, Alto contraste y Contorno (convierte fotos en líneas y se adapta a fotos oscuras o con mucho detalle) |
 | Proporciones | Grid fijo en pantalla, si lo hay | Cuadrícula 3×3 o 4×4 pegada a la imagen: se mueve, escala y gira con ella |
 | Retomar un dibujo | Volver a acomodar todo | La Biblioteca guarda posición, tamaño, opacidad y filtro de cada referencia |
-| Cámara | Una sola vista | Modo video (más fluido) o modo foto (encuadre más amplio), enfoque al centro, linterna y espejo |
+| Cámara | Una sola vista | Modo video (más fluido) o modo foto (encuadre más amplio), enfoque al centro y linterna |
 | Diseño | Plantillas genéricas | Interfaz nativa de iOS (Liquid Glass en iOS 26), VoiceOver, texto dinámico, español e inglés |
 
 Con esto se arman los mensajes de marketing (descripción, capturas y videos) y las notas para el revisor.

@@ -151,7 +151,7 @@ struct SavedReferenceCard: View {
                     Image(uiImage: thumbnail)
                         .resizable()
                         .frame(width: w, height: h)
-                        .scaleEffect(x: configuration.isFlipped ? -shrink : shrink, y: shrink)
+                        .scaleEffect(x: configuration.isFlipped ? -shrink : shrink, y: configuration.isFlippedVertically ? -shrink : shrink)
                         .rotationEffect(.degrees(configuration.rotation))
                         .position(x: geo.size.width / 2, y: geo.size.height / 2)
                 }

@@ -443,6 +443,16 @@
         }
       }
     },
+    "Horizontal" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Horizontal"
+          }
+        }
+      }
+    },
     "How Tracey works" : {
       "localizations" : {
         "es" : {
@@ -543,12 +553,32 @@
         }
       }
     },
-    "Mirror image" : {
+    "Mirror" : {
       "localizations" : {
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Reflejar imagen"
+            "value" : "Espejo"
+          }
+        }
+      }
+    },
+    "Mirror horizontally" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reflejar horizontalmente"
+          }
+        }
+      }
+    },
+    "Mirror vertically" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reflejar verticalmente"
           }
         }
       }
@@ -1275,6 +1305,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Versión"
+          }
+        }
+      }
+    },
+    "Vertical" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vertical"
           }
         }
       }

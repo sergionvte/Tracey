@@ -22,11 +22,14 @@ class CameraViewModel: ObservableObject {
             if overlayImage !== oldValue { overlayImageChanged() }
         }
     }
-    @Published var imageOpacity: Double = 0.6 {
+    /// Opacity a new reference starts at (and double-tap resets to)
+    static let defaultOpacity: Double = 0.5
+
+    @Published var imageOpacity: Double = CameraViewModel.defaultOpacity {
         didSet {
             // Validar que el valor sea finito y esté en el rango correcto
             if !imageOpacity.isFinite || imageOpacity < 0 || imageOpacity > 1 {
-                imageOpacity = max(0, min(oldValue.isFinite ? oldValue : 0.6, 1))
+                imageOpacity = max(0, min(oldValue.isFinite ? oldValue : Self.defaultOpacity, 1))
             }
         }
     }
@@ -181,7 +184,7 @@ class CameraViewModel: ObservableObject {
         withAnimation(.easeInOut(duration: 0.3)) {
             imageScale = 1.0
             imageRotation = 0.0
-            imageOpacity = 0.6
+            imageOpacity = Self.defaultOpacity
             imageOffset = .zero
         }
     }
@@ -194,6 +197,7 @@ class CameraViewModel: ObservableObject {
         let rotation: Double
         let offset: CGSize
         let isFlipped: Bool
+        let isFlippedVertically: Bool
         let loadedImageName: String?
         let cameraZoom: CGFloat
         let filter: ReferenceFilter
@@ -211,6 +215,7 @@ class CameraViewModel: ObservableObject {
                 rotation: imageRotation,
                 offset: imageOffset,
                 isFlipped: isFlipped,
+                isFlippedVertically: isFlippedVertically,
                 loadedImageName: imageStorage.loadedImageName,
                 cameraZoom: cameraUIViewRef?.getCurrentZoomFactor() ?? 1.0,
                 filter: referenceFilter,
@@ -224,6 +229,7 @@ class CameraViewModel: ObservableObject {
         gridDivisions = 0
         imageStorage.loadedImageName = nil // Limpiar referencia al nombre de imagen cargada
         isFlipped = false // Reiniciar flip horizontal al borrar
+        isFlippedVertically = false
         if isTorchOn { toggleTorch() } // the camera turns off with no image, so does the light
         isPropertiesLocked = false
         resetImageTransforms()
@@ -245,6 +251,7 @@ class CameraViewModel: ObservableObject {
             imageRotation = removed.rotation
             imageOffset = removed.offset
             isFlipped = removed.isFlipped
+            isFlippedVertically = removed.isFlippedVertically
             setFilterForNewImage(removed.filter)
             gridDivisions = removed.gridDivisions
         }
@@ -265,10 +272,11 @@ class CameraViewModel: ObservableObject {
             imageStorage.loadedImageName = configuration.imageName // Guardar el nombre de la imagen cargada
 
             // Validar todos los valores antes de asignarlos
-            imageOpacity = configuration.opacity.isFinite ? max(0, min(configuration.opacity, 1)) : 0.6
+            imageOpacity = configuration.opacity.isFinite ? max(0, min(configuration.opacity, 1)) : Self.defaultOpacity
             imageScale = configuration.scale.isFinite && configuration.scale > 0 ? CGFloat(configuration.scale) : 1.0
             imageRotation = configuration.rotation.isFinite ? configuration.rotation : 0.0
             isFlipped = configuration.isFlipped // Cargar flip
+            isFlippedVertically = configuration.isFlippedVertically
 
             let offsetWidth = configuration.offsetX.isFinite ? configuration.offsetX : 0.0
             let offsetHeight = configuration.offsetY.isFinite ? configuration.offsetY : 0.0
@@ -322,6 +330,12 @@ class CameraViewModel: ObservableObject {
         isFlipped.toggle()
     }
 
+    @Published var isFlippedVertically: Bool = false
+
+    func flipOverlayImageVertically() {
+        isFlippedVertically.toggle()
+    }
+
     @Published var isPropertiesLocked: Bool = false {
         didSet {
             // When unlocking, return the canvas to its normal position so the image can be edited
@@ -371,7 +385,7 @@ class CameraViewModel: ObservableObject {
                 withTransaction(transaction) {
                     imageScale = 1.0
                     imageRotation = 0.0
-                    imageOpacity = 0.6
+                    imageOpacity = Self.defaultOpacity
                     imageOffset = .zero
                     setFilterForNewImage(.original) // a fresh image starts unfiltered
                     gridDivisions = 0
@@ -379,6 +393,7 @@ class CameraViewModel: ObservableObject {
                 }
                 imageStorage.loadedImageName = nil
                 isFlipped = false
+                isFlippedVertically = false
                 isPropertiesLocked = false
                 resetViewport()
                 // Reiniciar zoom al cargar desde galería
@@ -390,7 +405,7 @@ class CameraViewModel: ObservableObject {
     func saveCurrentConfiguration(cameraZoom: CGFloat) -> Bool {
         guard let image = overlayImage else { return false }
 
-        let safeOpacity = imageOpacity.isFinite ? imageOpacity : 0.6
+        let safeOpacity = imageOpacity.isFinite ? imageOpacity : Self.defaultOpacity
         let safeScale = imageScale.isFinite && imageScale > 0 ? imageScale : 1.0
         let safeRotation = imageRotation.isFinite ? imageRotation : 0.0
         let safeOffsetX = imageOffset.width.isFinite ? imageOffset.width : 0.0
@@ -408,6 +423,7 @@ class CameraViewModel: ObservableObject {
             offsetX: safeOffsetX,
             offsetY: safeOffsetY,
             isFlipped: safeIsFlipped,
+            isFlippedVertically: isFlippedVertically,
             cameraZoom: cameraZoom,
             captureMode: captureMode,
             filter: referenceFilter.rawValue,

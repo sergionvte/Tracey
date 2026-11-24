@@ -25,8 +25,11 @@ struct SavedImageConfiguration: Codable, Identifiable {
     let filter: String?
     /// Grid divisions (3 or 4); nil or 0 = off
     let gridDivisions: Int?
+    /// Vertical mirror (nil in older saves = not mirrored)
+    let verticalMirror: Bool?
+    var isFlippedVertically: Bool { verticalMirror ?? false }
 
-    init(imageName: String, opacity: Double, scale: Double, rotation: Double, offsetX: Double = 0, offsetY: Double = 0, isFlipped: Bool = false, cameraZoom: CGFloat = 1.0, captureMode: CameraCaptureMode? = nil, filter: String? = nil, gridDivisions: Int? = nil) {
+    init(imageName: String, opacity: Double, scale: Double, rotation: Double, offsetX: Double = 0, offsetY: Double = 0, isFlipped: Bool = false, isFlippedVertically: Bool = false, cameraZoom: CGFloat = 1.0, captureMode: CameraCaptureMode? = nil, filter: String? = nil, gridDivisions: Int? = nil) {
         self.id = UUID()
         self.imageName = imageName
         self.opacity = opacity
@@ -40,10 +43,11 @@ struct SavedImageConfiguration: Codable, Identifiable {
         self.captureMode = captureMode
         self.filter = filter
         self.gridDivisions = gridDivisions
+        self.verticalMirror = isFlippedVertically
     }
 
     // Nuevo init para sobrescribir manteniendo id y fecha
-    init(id: UUID, imageName: String, opacity: Double, scale: Double, rotation: Double, offsetX: Double, offsetY: Double, isFlipped: Bool, dateCreated: Date, cameraZoom: CGFloat, captureMode: CameraCaptureMode?, filter: String?, gridDivisions: Int?) {
+    init(id: UUID, imageName: String, opacity: Double, scale: Double, rotation: Double, offsetX: Double, offsetY: Double, isFlipped: Bool, isFlippedVertically: Bool, dateCreated: Date, cameraZoom: CGFloat, captureMode: CameraCaptureMode?, filter: String?, gridDivisions: Int?) {
         self.id = id
         self.imageName = imageName
         self.opacity = opacity
@@ -57,5 +61,6 @@ struct SavedImageConfiguration: Codable, Identifiable {
         self.captureMode = captureMode
         self.filter = filter
         self.gridDivisions = gridDivisions
+        self.verticalMirror = isFlippedVertically
     }
 }
