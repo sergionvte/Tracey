@@ -33,6 +33,22 @@
         }
       }
     },
+    "%lld%% × %lld%%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld%% × %2$lld%%"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld%% × %2$lld%%"
+          }
+        }
+      }
+    },
     "3 by 3" : {
       "localizations" : {
         "es" : {
@@ -720,16 +736,6 @@
         }
       }
     },
-    "Locked" : {
-      "localizations" : {
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bloqueada"
-          }
-        }
-      }
-    },
     "Locked · drag & pinch to move the view. Hold the lock to unlock." : {
       "localizations" : {
         "es" : {
@@ -757,16 +763,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Menta"
-          }
-        }
-      }
-    },
-    "Mirror" : {
-      "localizations" : {
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Espejo"
           }
         }
       }
@@ -1279,6 +1275,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Omitir recorrido"
+          }
+        }
+      }
+    },
+    "Snap off · place it freely" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imán desactivado · colócala libremente"
+          }
+        }
+      }
+    },
+    "Snap on · center and right angles" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imán activado · centro y ángulos rectos"
+          }
+        }
+      }
+    },
+    "Snap to center and right angles" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imán al centro y ángulos rectos"
           }
         }
       }

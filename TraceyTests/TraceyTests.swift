@@ -69,3 +69,17 @@ struct AppIconChoiceTests {
         #expect(AppIconChoice(alternateName: "AppIcon-Removed") == .amber)
     }
 }
+
+struct RotationSliderTests {
+    @Test func halfTurnStaysOnTheEndItWasDraggedTo() {
+        #expect(AdjustPanel.signedRotation(180, halfTurnIsNegative: true) == -180)
+        #expect(AdjustPanel.signedRotation(180, halfTurnIsNegative: false) == 180)
+    }
+
+    @Test func otherAnglesAreSignedAroundZero() {
+        #expect(AdjustPanel.signedRotation(0, halfTurnIsNegative: true) == 0)
+        #expect(AdjustPanel.signedRotation(90, halfTurnIsNegative: true) == 90)
+        #expect(AdjustPanel.signedRotation(270, halfTurnIsNegative: false) == -90)
+        #expect(AdjustPanel.signedRotation(.nan, halfTurnIsNegative: false) == 0)
+    }
+}

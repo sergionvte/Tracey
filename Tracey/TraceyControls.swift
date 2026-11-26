@@ -107,6 +107,10 @@ struct ToolColumn: View {
     /// Looking for the sheet (shows a spinner)
     var isFittingSheet: Bool = false
     var onFitToSheet: () -> Void = {}
+    /// Quick switch for the magnetic center and right angles (only while unlocked)
+    var showsSnapToggle: Bool = false
+    var isSnappingEnabled: Bool = true
+    var onToggleSnapping: () -> Void = {}
 
     var body: some View {
         GlassGroup(spacing: 10) {
@@ -137,6 +141,17 @@ struct ToolColumn: View {
                     FitToSheetButton(isSearching: isFittingSheet, action: onFitToSheet)
                         .transition(.scale.combined(with: .opacity))
                     // Mirroring lives in the Adjust panel, next to size and rotation
+
+                    if showsSnapToggle {
+                        GlassIconButton(
+                            systemName: "align.horizontal.center",
+                            label: String(localized: "Snap to center and right angles"),
+                            isActive: isSnappingEnabled,
+                            action: onToggleSnapping
+                        )
+                        .accessibilityAddTraits(isSnappingEnabled ? .isSelected : [])
+                        .transition(.scale.combined(with: .opacity))
+                    }
                 }
 
                 if showsResetView {
@@ -151,6 +166,7 @@ struct ToolColumn: View {
             }
         }
         .animation(Theme.spring, value: showsResetView)
+        .animation(Theme.spring, value: showsSnapToggle)
         .animation(Theme.spring, value: hasImage)
     }
 }
@@ -358,19 +374,33 @@ struct AdjustPanel: View {
     var maxHeight: CGFloat = .infinity
     /// Opens the crop screen
     var onCrop: () -> Void = {}
+    /// Natural height of everything in the panel (to make room for it without scrolling)
+    var onContentHeight: (CGFloat) -> Void = { _ in }
 
     @State private var contentHeight: CGFloat = 0
+    /// −180° and 180° are the same angle (stored as 180): remember which end of the slider was
+    /// used last, so dragging to −180 doesn't make the thumb jump to the other end
+    @State private var halfTurnIsNegative = false
 
     /// Model rotation (0..<360) shown as −180…180
     private var signedRotation: Double {
-        let rotation = viewModel.imageRotation.isFinite ? viewModel.imageRotation : 0
+        Self.signedRotation(viewModel.imageRotation, halfTurnIsNegative: halfTurnIsNegative)
+    }
+
+    /// 0..<360 → −180…180; exactly 180 goes to the end the slider was last dragged to
+    static func signedRotation(_ rotation: Double, halfTurnIsNegative: Bool) -> Double {
+        let rotation = rotation.isFinite ? rotation : 0
+        if abs(rotation - 180) < 0.001 { return halfTurnIsNegative ? -180 : 180 }
         return rotation > 180 ? rotation - 360 : rotation
     }
 
     var body: some View {
         ScrollView {
             content
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                    contentHeight = $0
+                    onContentHeight($0)
+                }
         }
         .scrollBounceBehavior(.basedOnSize)
         .frame(height: min(max(contentHeight, 1), maxHeight))
@@ -385,30 +415,17 @@ struct AdjustPanel: View {
     }
 
     private var content: some View {
-        VStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    Text("Adjust")
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                    Spacer()
-                    if isLocked {
-                        Label("Locked", systemImage: "lock.fill")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Theme.accent)
-                    }
-                }
-                // Collapses to nothing while unlocked (kept in place, no insertion)
-                Text("Unlock to resize or rotate")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.7))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 2)
-                    .frame(maxWidth: .infinity, maxHeight: isLocked ? nil : 0, alignment: .topLeading)
-                    .opacity(isLocked ? 1 : 0)
-                    .clipped()
-                    .accessibilityHidden(!isLocked)
-            }
+        VStack(spacing: 8) {
+            // No title: the highlighted dock button already says what this is. While locked, one
+            // line explains why size and rotation are dimmed (collapses to nothing otherwise).
+            Label("Unlock to resize or rotate", systemImage: "lock.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Theme.accent)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, maxHeight: isLocked ? nil : 0, alignment: .topLeading)
+                .opacity(isLocked ? 1 : 0)
+                .clipped()
+                .accessibilityHidden(!isLocked)
 
             // Filters never change size or position, so they stay available while locked
             FilterPicker(
@@ -441,7 +458,7 @@ struct AdjustPanel: View {
 
             // Size and rotation would break the alignment with the paper, so only these are
             // disabled while locked; opacity stays live.
-            VStack(spacing: 10) {
+            VStack(spacing: 8) {
                 AdjustRow(
                     icon: "arrow.up.left.and.arrow.down.right",
                     title: String(localized: "Size"),
@@ -460,18 +477,21 @@ struct AdjustPanel: View {
                     // −180…180 centered on 0; the model keeps 0..<360
                     Slider(value: Binding(
                         get: { signedRotation },
-                        set: { viewModel.imageRotation = $0 < 0 ? $0 + 360 : $0 }
+                        set: {
+                            halfTurnIsNegative = $0 < 0
+                            viewModel.imageRotation = $0 < 0 ? $0 + 360 : $0
+                        }
                     ), in: -180...180)
                 }
 
-                MirrorRow(
+                ImageActionsRow(
                     horizontal: viewModel.isFlipped,
                     vertical: viewModel.isFlippedVertically,
+                    isCropped: viewModel.cropRect != ImageCropping.unitRect,
                     onHorizontal: { viewModel.flipOverlayImage() },
-                    onVertical: { viewModel.flipOverlayImageVertically() }
+                    onVertical: { viewModel.flipOverlayImageVertically() },
+                    onCrop: onCrop
                 )
-
-                CropRow(isCropped: viewModel.cropRect != ImageCropping.unitRect, action: onCrop)
             }
             .disabled(isLocked)
             .opacity(isLocked ? 0.45 : 1)
@@ -481,7 +501,9 @@ struct AdjustPanel: View {
         }
         .animation(Theme.spring, value: viewModel.referenceFilter)
         .padding(.horizontal, 20)
-        .padding(.vertical, 14)
+        .padding(.vertical, 12)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Adjust")
     }
 }
 
@@ -492,29 +514,19 @@ private struct FilterPicker: View {
     let onSelect: (ReferenceFilter) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 10) {
-                Image(systemName: "camera.filters")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.7))
-                    .frame(width: 20)
-                Text("Filter")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white)
-            }
-            .accessibilityElement(children: .combine)
-
-            HStack(spacing: 8) {
-                ForEach(ReferenceFilter.allCases) { filter in
-                    FilterTile(
-                        filter: filter,
-                        thumbnail: thumbnails[filter],
-                        isSelected: filter == selected,
-                        action: { onSelect(filter) }
-                    )
-                }
+        // The live previews say what they are, so no "Filter" heading
+        HStack(spacing: 8) {
+            ForEach(ReferenceFilter.allCases) { filter in
+                FilterTile(
+                    filter: filter,
+                    thumbnail: thumbnails[filter],
+                    isSelected: filter == selected,
+                    action: { onSelect(filter) }
+                )
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Filter")
     }
 }
 
@@ -613,7 +625,6 @@ private struct GridRow: View {
     }
 }
 
-/// Two independent toggles: mirror left↔right and top↔bottom
 /// Outline filter: how much detail it keeps and the line color. Like the filters, it never
 /// moves the image, so it stays available while locked.
 private struct OutlineControls: View {
@@ -622,7 +633,7 @@ private struct OutlineControls: View {
     let onColor: (OutlineColor) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             AdjustRow(
                 icon: "scribble.variable",
                 title: String(localized: "Detail"),
@@ -644,41 +655,58 @@ private struct OutlineControls: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 6) {
+            // One line (palette icon + swatches) when it fits; label above them otherwise
+            ViewThatFits(in: .horizontal) {
                 HStack(spacing: 10) {
-                    Image(systemName: "paintpalette")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.7))
-                        .frame(width: 20)
-                    Text("Line Color")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.white)
+                    paletteIcon
+                    swatches
                 }
-                .accessibilityHidden(true)
-
-                HStack(spacing: 4) {
-                    ForEach(OutlineColor.presets, id: \.self) { color in
-                        swatch(color)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 10) {
+                        paletteIcon
+                        Text("Line Color")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.white)
                     }
-                    ColorPicker(selection: Binding(
-                        get: { Color(uiColor: style.color.uiColor) },
-                        set: { onColor(OutlineColor(UIColor($0))) }
-                    ), supportsOpacity: false) {
-                        Text("Custom color")
-                    }
-                    .labelsHidden()
-                    .frame(width: 44, height: 44)
-                    .overlay {
-                        // Marks a custom color as the current one
-                        Circle()
-                            .strokeBorder(Theme.accent, lineWidth: 2.5)
-                            .frame(width: 36, height: 36)
-                            .opacity(style.color.presetName == nil ? 1 : 0)
-                            .allowsHitTesting(false)
-                    }
+                    swatches
                 }
             }
         }
+    }
+
+    private var paletteIcon: some View {
+        Image(systemName: "paintpalette")
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.7))
+            .frame(width: 20)
+            .accessibilityHidden(true)
+    }
+
+    private var swatches: some View {
+        HStack(spacing: 2) {
+            ForEach(OutlineColor.presets, id: \.self) { color in
+                swatch(color)
+            }
+            ColorPicker(selection: Binding(
+                get: { Color(uiColor: style.color.uiColor) },
+                set: { onColor(OutlineColor(UIColor($0))) }
+            ), supportsOpacity: false) {
+                Text("Custom color")
+            }
+            .labelsHidden()
+            .frame(width: 40, height: 44)
+            .overlay {
+                // Marks a custom color as the current one
+                Circle()
+                    .strokeBorder(Theme.accent, lineWidth: 2.5)
+                    .frame(width: 36, height: 36)
+                    .opacity(style.color.presetName == nil ? 1 : 0)
+                    .allowsHitTesting(false)
+            }
+        }
+        .fixedSize()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Line Color")
     }
 
     private func swatch(_ color: OutlineColor) -> some View {
@@ -693,7 +721,7 @@ private struct OutlineControls: View {
                 .frame(width: 26, height: 26)
                 .padding(4)
                 .overlay(Circle().strokeBorder(Theme.accent, lineWidth: 2.5).opacity(isSelected ? 1 : 0))
-                .frame(maxWidth: 44, minHeight: 44)
+                .frame(width: 40, height: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -702,109 +730,74 @@ private struct OutlineControls: View {
     }
 }
 
-/// Opens the crop screen. Shows when the image is cropped (it can always go back).
-private struct CropRow: View {
-    let isCropped: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button {
-            Haptics.light()
-            action()
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "crop")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.7))
-                    .frame(width: 20)
-                Text("Crop")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white)
-                Spacer()
-                if isCropped {
-                    Text("Cropped")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(Theme.accent)
-                }
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.5))
-            }
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityValue(isCropped ? String(localized: "Cropped") : "")
-    }
-}
-
-private struct MirrorRow: View {
+/// One row of three buttons: mirror left↔right, mirror top↔bottom (both toggles) and crop
+/// (opens the crop screen; reads "Cropped" in amber while the image is cropped).
+private struct ImageActionsRow: View {
     let horizontal: Bool
     let vertical: Bool
+    let isCropped: Bool
     let onHorizontal: () -> Void
     let onVertical: () -> Void
-    @Environment(\.dynamicTypeSize) private var typeSize
+    let onCrop: () -> Void
 
     var body: some View {
-        Group {
-            if typeSize >= .xLarge {
-                VStack(alignment: .leading, spacing: 6) {
-                    label
-                    toggles
-                }
-            } else {
-                HStack(spacing: 10) {
-                    label
-                    toggles
-                }
-            }
+        // Side by side; stacked when large text doesn't fit on one line
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) { buttons }
+            VStack(spacing: 6) { buttons }
         }
     }
 
-    private var label: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "rectangle.on.rectangle.angled")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.7))
-                .frame(width: 20)
-            Text("Mirror")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.white)
-                .frame(width: 66, alignment: .leading)
+    @ViewBuilder private var buttons: some View {
+        chip(String(localized: "Horizontal"),
+             icon: "arrow.left.and.right.righttriangle.left.righttriangle.right",
+             accessibility: String(localized: "Mirror horizontally"),
+             isOn: horizontal, action: onHorizontal)
+        chip(String(localized: "Vertical"),
+             icon: "arrow.up.and.down.righttriangle.up.righttriangle.down",
+             accessibility: String(localized: "Mirror vertically"),
+             isOn: vertical, action: onVertical)
+        Button {
+            Haptics.light()
+            onCrop()
+        } label: {
+            chipLabel(isCropped ? String(localized: "Cropped") : String(localized: "Crop"), icon: "crop")
+                .foregroundStyle(isCropped ? Theme.accent : Color.white)
+                .background(Color.white.opacity(0.12), in: Capsule())
+                .contentShape(Capsule())
         }
-        .accessibilityHidden(true)
+        .buttonStyle(.plain)
+        .accessibilityLabel("Crop")
+        .accessibilityValue(isCropped ? String(localized: "Cropped") : "")
     }
 
-    /// Text only, at the size of the grid's segments right below, so the two rows read alike
-    private var toggles: some View {
-        HStack(spacing: 6) {
-            toggle(String(localized: "Horizontal"),
-                   accessibility: String(localized: "Mirror horizontally"),
-                   isOn: horizontal, action: onHorizontal)
-            toggle(String(localized: "Vertical"),
-                   accessibility: String(localized: "Mirror vertically"),
-                   isOn: vertical, action: onVertical)
-        }
-    }
-
-    private func toggle(_ title: String, accessibility: String, isOn: Bool,
-                        action: @escaping () -> Void) -> some View {
+    private func chip(_ title: String, icon: String, accessibility: String, isOn: Bool,
+                      action: @escaping () -> Void) -> some View {
         Button {
             Haptics.light()
             action()
         } label: {
-            Text(title)
-                .font(.footnote.weight(.semibold))
-                .lineLimit(1)
-                .padding(.horizontal, 8)
+            chipLabel(title, icon: icon)
                 .foregroundStyle(isOn ? Color.black : Color.white)
-                .frame(maxWidth: .infinity, minHeight: 44)
                 .background(isOn ? Theme.accent : Color.white.opacity(0.12), in: Capsule())
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibility)
         .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+
+    private func chipLabel(_ title: String, icon: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+            Text(title)
+                .font(.footnote.weight(.semibold))
+                .lineLimit(1)
+        }
+        .fixedSize()
+        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity, minHeight: 44)
     }
 }
 

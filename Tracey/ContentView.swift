@@ -10,6 +10,8 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var showingImagePicker = false
     @State private var showingSettings = false
+    /// Magnetic center and right-angle rotation while placing the image (on by default)
+    @AppStorage(SnapPreference.storageKey) private var isSnappingEnabled = true
     /// The crop screen, while open
     @State private var cropSession: CropSession?
     /// Looking for the sheet in the camera
@@ -45,6 +47,10 @@ struct ContentView: View {
     @State private var tourCardHeight: CGFloat = 0
     /// Bottom of the top row (tool column), in the chrome's coordinates
     @State private var topChromeBottom: CGFloat = 0
+    /// Bottom of the left column (mode switch and camera banner) alone
+    @State private var leftChromeBottom: CGFloat = 0
+    /// Natural height of the Adjust panel's content
+    @State private var adjustContentHeight: CGFloat = 0
     private static let chromeSpace = "chrome"
     /// Dock: 68 pt lock button + 8 pt to the bottom safe area
     private static let dockBottomPadding: CGFloat = 8
@@ -87,6 +93,7 @@ struct ContentView: View {
                     cameraUIView: $cameraUIView,
                     isZoomEnabled: !viewModel.isPropertiesLocked,
                     isViewportEnabled: viewModel.isPropertiesLocked,
+                    isSnappingEnabled: isSnappingEnabled,
                     overlay: OverlayRenderState(
                         // The filtered version is drawn; the original stays in overlayImage
                         image: viewModel.displayImage,
@@ -118,7 +125,8 @@ struct ContentView: View {
                 // (same view that draws it), so there is no SwiftUI touch layer on top.
 
                 // Visual snap indicators (only if not locked)
-                if viewModel.overlayImage != nil && !viewModel.isPropertiesLocked && viewModel.isDraggingImage {
+                if viewModel.overlayImage != nil && !viewModel.isPropertiesLocked && viewModel.isDraggingImage
+                    && isSnappingEnabled {
                     SnapIndicators(
                         dragOffset: .zero,
                         imageOffset: viewModel.imageOffset,
@@ -165,6 +173,9 @@ struct ContentView: View {
                             .allowsHitTesting(showsCameraBanner)
                             .accessibilityHidden(!showsCameraBanner)
                         }
+                        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.chromeSpace)).maxY } action: {
+                            leftChromeBottom = $0
+                        }
                         Spacer(minLength: 12)
                         ToolColumn(
                             timelapsePhase: timelapse.phase,
@@ -190,8 +201,18 @@ struct ContentView: View {
                                 Haptics.light()
                             },
                             isFittingSheet: isFittingSheet,
-                            onFitToSheet: fitToSheetFromButton
+                            onFitToSheet: fitToSheetFromButton,
+                            // Snapping only matters while the image can be moved
+                            showsSnapToggle: !viewModel.isPropertiesLocked,
+                            isSnappingEnabled: isSnappingEnabled,
+                            onToggleSnapping: toggleSnapping
                         )
+                        // Slides off to the side while the Adjust panel needs its height
+                        .offset(x: toolsYieldToAdjust(geometry) ? 120 : 0)
+                        .opacity(toolsYieldToAdjust(geometry) ? 0 : 1)
+                        .allowsHitTesting(!toolsYieldToAdjust(geometry))
+                        .accessibilityHidden(toolsYieldToAdjust(geometry))
+                        .animation(Theme.spring, value: toolsYieldToAdjust(geometry))
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 4)
@@ -454,6 +475,15 @@ struct ContentView: View {
         runOpenActionsIfNeeded()
     }
 
+    private func toggleSnapping() {
+        isSnappingEnabled.toggle()
+        Haptics.light()
+        showToast(isSnappingEnabled
+            ? ToastMessage(icon: "align.horizontal.center", text: String(localized: "Snap on · center and right angles"),
+                           tint: Theme.accent)
+            : ToastMessage(icon: "hand.draw.fill", text: String(localized: "Snap off · place it freely")))
+    }
+
     private func toggleControls() {
         // Nothing to hide for on the welcome screen: hiding the card there left a blank screen
         guard viewModel.overlayImage != nil else { return }
@@ -592,9 +622,10 @@ struct ContentView: View {
             // with a transition while the ⋯ menu was closing (Remove Image) left an
             // invisible panel over the toast that swallowed the Undo tap.
             let showsAdjust = showingImageControls && viewModel.overlayImage != nil
-            let panelMaxHeight = max(160, geometry.size.height - Self.dockReservedHeight - 12 - topChromeBottom)
+            let panelTop = toolsYieldToAdjust(geometry) ? leftChromeBottom : topChromeBottom
+            let panelMaxHeight = max(160, adjustRoom(below: panelTop, geometry))
             AdjustPanel(viewModel: viewModel, isLocked: viewModel.isPropertiesLocked, maxHeight: panelMaxHeight,
-                        onCrop: openCropFromPanel)
+                        onCrop: openCropFromPanel, onContentHeight: { adjustContentHeight = $0 })
                 .padding(.horizontal, 16)
                 // Hidden: takes no height, draws nothing, takes no touches
                 .frame(height: showsAdjust ? nil : 0, alignment: .bottom)
@@ -607,6 +638,18 @@ struct ContentView: View {
         .opacity(showingControls ? 1 : 0)
         .allowsHitTesting(showingControls)
         .accessibilityHidden(isTourPresented)
+    }
+
+    /// Height between a top edge (chrome coordinates) and the dock, for the Adjust panel
+    private func adjustRoom(below top: CGFloat, _ geometry: GeometryProxy) -> CGFloat {
+        geometry.size.height - Self.dockReservedHeight - 12 - top
+    }
+
+    /// The camera tools step aside while the open Adjust panel wouldn't fit under them, so the
+    /// whole panel shows without scrolling (the mode switch on the left stays)
+    private func toolsYieldToAdjust(_ geometry: GeometryProxy) -> Bool {
+        showingImageControls && viewModel.overlayImage != nil && showingControls
+            && adjustContentHeight > adjustRoom(below: topChromeBottom, geometry)
     }
 
     // MARK: - Fit to sheet
@@ -860,6 +903,10 @@ struct ContentView: View {
             }
         }
     }
+}
+
+enum SnapPreference {
+    static let storageKey = "snapToCenter"
 }
 
 // Snap indicators view

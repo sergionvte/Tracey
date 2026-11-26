@@ -65,6 +65,8 @@ struct CameraView: UIViewRepresentable {
     var isZoomEnabled: Bool
     /// When true (properties locked) drag/pinch move and zoom camera + image together.
     var isViewportEnabled: Bool
+    /// Magnetic center and 0/90/180/270° rotation while editing the image
+    var isSnappingEnabled: Bool = true
     var overlay: OverlayRenderState
     /// Rect (in this view's coordinates) the overlay image is fitted and centered in.
     var overlayLayoutRect: CGRect
@@ -81,6 +83,7 @@ struct CameraView: UIViewRepresentable {
     func makeUIView(context: Context) -> CameraUIView {
         let cameraView = CameraUIView()
         cameraView.isZoomEnabled = isZoomEnabled
+        cameraView.isSnappingEnabled = isSnappingEnabled
         cameraView.onSingleTap = onSingleTap
         cameraView.onSessionInterruptionChanged = onSessionInterruption
         cameraView.onCameraAccessDenied = { [weak viewModel] denied in
@@ -123,6 +126,7 @@ struct CameraView: UIViewRepresentable {
 
     func updateUIView(_ uiView: CameraUIView, context: Context) {
         uiView.isZoomEnabled = isZoomEnabled
+        uiView.isSnappingEnabled = isSnappingEnabled
         uiView.onSingleTap = onSingleTap
         uiView.onSessionInterruptionChanged = onSessionInterruption
         uiView.tapExclusionRects = tapExclusionRects
@@ -729,6 +733,8 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
     // on and partly off the image. Values are reported live to the view model.
 
     var onOverlayEdit: ((OverlayEdit) -> Void)?
+    /// Off: the image moves and rotates freely (no magnetic center, no right-angle snap)
+    var isSnappingEnabled = true
 
     private var editState: (offset: CGSize, scale: CGFloat, rotation: Double)?
     private var rotationAtStart: Double = 0
@@ -776,7 +782,8 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
         editState = (state.offset, state.scale, state.rotation)
         panMovedImage = false
         rawDragOffset = state.offset
-        snapLatched = (abs(state.offset.width) < 0.5, abs(state.offset.height) < 0.5)
+        snapLatched = isSnappingEnabled
+            ? (abs(state.offset.width) < 0.5, abs(state.offset.height) < 0.5) : (false, false)
         snapFeedback.prepare()
     }
 
@@ -792,19 +799,21 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
                 rawDragOffset.height += translation.y
                 // Magnetic center: within the snap distance an axis is held exactly at 0 (so the
                 // amber guide only shows when the image really is centered) until the drag pulls
-                // it beyond the release distance
+                // it beyond the release distance. With snapping off nothing latches (free movement).
                 var snapped = false
-                if snapLatched.x {
-                    if abs(rawDragOffset.width) > centerReleaseDistance { snapLatched.x = false }
-                } else if abs(rawDragOffset.width) <= centerSnapDistance {
-                    snapLatched.x = true
-                    snapped = true
-                }
-                if snapLatched.y {
-                    if abs(rawDragOffset.height) > centerReleaseDistance { snapLatched.y = false }
-                } else if abs(rawDragOffset.height) <= centerSnapDistance {
-                    snapLatched.y = true
-                    snapped = true
+                if isSnappingEnabled {
+                    if snapLatched.x {
+                        if abs(rawDragOffset.width) > centerReleaseDistance { snapLatched.x = false }
+                    } else if abs(rawDragOffset.width) <= centerSnapDistance {
+                        snapLatched.x = true
+                        snapped = true
+                    }
+                    if snapLatched.y {
+                        if abs(rawDragOffset.height) > centerReleaseDistance { snapLatched.y = false }
+                    } else if abs(rawDragOffset.height) <= centerSnapDistance {
+                        snapLatched.y = true
+                        snapped = true
+                    }
                 }
                 if snapped {
                     snapFeedback.selectionChanged()
@@ -843,7 +852,7 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
         }
         if [.began, .changed, .ended].contains(gesture.state), var edit = editState {
             let raw = rotationAtStart + Double(gesture.rotation) * 180 / .pi
-            let snapped = snappedAngle(raw)
+            let snapped = isSnappingEnabled ? snappedAngle(raw) : normalizedAngle(raw)
             if snapped != edit.rotation {
                 if [0.0, 90, 180, 270].contains(snapped) {
                     snapFeedback.selectionChanged()
@@ -864,7 +873,7 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
     private func finishImageEditIfIdle() {
         guard var edit = editState, !isImageGestureActive else { return }
         // Magnetic center: snap each axis that ended within the threshold (after a drag)
-        if panMovedImage {
+        if panMovedImage && isSnappingEnabled {
             if abs(edit.offset.width) <= centerSnapDistance { edit.offset.width = 0 }
             if abs(edit.offset.height) <= centerSnapDistance { edit.offset.height = 0 }
         }
@@ -888,12 +897,16 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
 
     /// Normalizes to 0..<360 and snaps to 0/90/180/270 within a few degrees.
     private func snappedAngle(_ angle: Double) -> Double {
-        var normalized = angle.truncatingRemainder(dividingBy: 360)
-        if normalized < 0 { normalized += 360 }
+        let normalized = normalizedAngle(angle)
         for cardinal in [0.0, 90, 180, 270, 360] where abs(normalized - cardinal) <= angleSnapDegrees {
             return cardinal == 360 ? 0 : cardinal
         }
         return normalized
+    }
+
+    private func normalizedAngle(_ angle: Double) -> Double {
+        let normalized = angle.truncatingRemainder(dividingBy: 360)
+        return normalized < 0 ? normalized + 360 : normalized
     }
 
     // MARK: - Capture mode

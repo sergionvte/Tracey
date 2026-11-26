@@ -41,10 +41,12 @@ final class LayoutScreenshotTests: XCTestCase {
         // Settings: icon picker, special edition, help and privacy
         app.buttons["Configuración"].firstMatch.tap()
         XCTAssertTrue(app.navigationBars["Configuración"].waitForExistence(timeout: 5), "Settings didn't open")
-        XCTAssertTrue(app.buttons["Política de privacidad"].exists || app.links["Política de privacidad"].exists,
-                      "Privacy policy missing from Settings")
         settle()
         snapshot("3 configuracion vertical")
+        // On small phones the link is further down the list
+        let privacy = app.descendants(matching: .any)["Política de privacidad"].firstMatch
+        for _ in 0..<4 where !privacy.exists { app.swipeUp() }
+        XCTAssertTrue(privacy.exists, "Privacy policy missing from Settings")
         app.buttons["Listo"].firstMatch.tap()
 
         // Relaunch with a sample reference loaded
@@ -70,6 +72,60 @@ final class LayoutScreenshotTests: XCTestCase {
         settle()
         snapshot("7 menu horizontal")
         XCTAssertTrue(app.buttons["Configuración"].exists, "Settings missing from the ⋯ menu")
+    }
+
+    /// In portrait the whole Adjust panel shows above the dock without scrolling, also with the
+    /// Outline filter's extra rows
+    @MainActor
+    func testAdjustPanelFitsWithoutScrolling() throws {
+        let skip = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Omitir'")).firstMatch
+        if skip.waitForExistence(timeout: 20) { skip.tap() }
+        app.terminate()
+        app.launchArguments += ["-TraceySampleReference"]
+        app.launch()
+        let adjust = app.buttons["Ajustar imagen"].firstMatch
+        XCTAssertTrue(adjust.waitForExistence(timeout: 20), "The sample reference didn't load")
+        adjust.tap()
+        settle()
+
+        let original = app.buttons["Original"].firstMatch
+        let gridOff = app.buttons["No"].firstMatch
+        func assertWholePanelShows(_ name: String) {
+            snapshot(name)
+            XCTAssertTrue(gridOff.exists, "Grid row missing")
+            XCTAssertLessThanOrEqual(gridOff.frame.maxY, adjust.frame.minY, "\(name): the panel's last row is cut off")
+            XCTAssertGreaterThanOrEqual(original.frame.minY, 0, "\(name): the filters are cut off")
+            XCTAssertTrue(app.buttons["Recortar"].firstMatch.isHittable, "\(name): Crop isn't reachable")
+        }
+        assertWholePanelShows("ajustar vertical")
+
+        app.buttons["Contorno"].firstMatch.tap()
+        settle()
+        assertWholePanelShows("ajustar contorno vertical")
+        original.tap()
+    }
+
+    /// The snap switch sits in the tool column while unlocked, starts on, and turns off with a tap
+    @MainActor
+    func testSnapToggle() throws {
+        app.terminate()
+        app.launchArguments += ["-TraceySampleReference"]
+        app.launch()
+        let snap = app.buttons["Imán al centro y ángulos rectos"].firstMatch
+        XCTAssertTrue(snap.waitForExistence(timeout: 20), "Snap switch missing")
+        let startedOn = snap.isSelected
+
+        snap.tap()
+        XCTAssertNotEqual(snap.isSelected, startedOn, "Snap switch didn't change")
+        let toastText = startedOn ? "Imán desactivado" : "Imán activado"
+        let toast = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", toastText)).firstMatch
+        XCTAssertTrue(toast.waitForExistence(timeout: 3), "No toast after switching snap")
+        settle()
+        snapshot("iman cambiado")
+
+        // Leave the preference as it was (it's stored)
+        snap.tap()
+        XCTAssertEqual(snap.isSelected, startedOn)
     }
 
     /// Picks another icon in Settings, checks iOS confirms the change, shows the home screen,
