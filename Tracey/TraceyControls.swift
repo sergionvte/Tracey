@@ -104,6 +104,9 @@ struct ToolColumn: View {
     let onFocus: () -> Void
     let onTorch: () -> Void
     let onResetView: () -> Void
+    /// Looking for the sheet (shows a spinner)
+    var isFittingSheet: Bool = false
+    var onFitToSheet: () -> Void = {}
 
     var body: some View {
         GlassGroup(spacing: 10) {
@@ -130,6 +133,9 @@ struct ToolColumn: View {
                         action: onTorch
                     )
                     .transition(.scale.combined(with: .opacity))
+
+                    FitToSheetButton(isSearching: isFittingSheet, action: onFitToSheet)
+                        .transition(.scale.combined(with: .opacity))
                     // Mirroring lives in the Adjust panel, next to size and rotation
                 }
 
@@ -146,6 +152,35 @@ struct ToolColumn: View {
         }
         .animation(Theme.spring, value: showsResetView)
         .animation(Theme.spring, value: hasImage)
+    }
+}
+
+/// Finds the paper in the camera and puts the image on it. Spinner while it looks.
+private struct FitToSheetButton: View {
+    let isSearching: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button {
+            if !isSearching { action() }
+        } label: {
+            ZStack {
+                Image(systemName: "doc.viewfinder")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .glyphShadow()
+                    .opacity(isSearching ? 0 : 1)
+                ProgressView()
+                    .tint(.white)
+                    .opacity(isSearching ? 1 : 0)
+            }
+            .frame(width: 48, height: 48)
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .glassSurface(Circle(), tint: Theme.controlTint, interactive: !isSearching)
+        .accessibilityLabel(String(localized: "Fit to Sheet"))
+        .accessibilityValue(isSearching ? String(localized: "Looking for the sheet") : "")
     }
 }
 

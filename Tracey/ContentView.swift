@@ -12,6 +12,8 @@ struct ContentView: View {
     @State private var showingSettings = false
     /// The crop screen, while open
     @State private var cropSession: CropSession?
+    /// Looking for the sheet in the camera
+    @State private var isFittingSheet = false
     /// "How to Use Tracey" from Settings: the tour opens once the sheet is gone
     @State private var tourAfterSettings = false
     @State private var showingControls = true
@@ -181,7 +183,9 @@ struct ContentView: View {
                             onResetView: {
                                 viewModel.resetViewport()
                                 Haptics.light()
-                            }
+                            },
+                            isFittingSheet: isFittingSheet,
+                            onFitToSheet: fitToSheetFromButton
                         )
                     }
                     .padding(.horizontal, 16)
@@ -592,6 +596,41 @@ struct ContentView: View {
         .opacity(showingControls ? 1 : 0)
         .allowsHitTesting(showingControls)
         .accessibilityHidden(isTourPresented)
+    }
+
+    // MARK: - Fit to sheet
+
+    private func fitToSheetFromButton() { fitToSheet(automatic: false) }
+
+    /// Finds the paper and puts the image on it, with Undo. `automatic` (right after opening an
+    /// image) waits longer for the camera to start and says nothing while locked.
+    private func fitToSheet(automatic: Bool) {
+        guard !isFittingSheet, let image = viewModel.overlayImage, let camera = cameraUIView else { return }
+        guard !viewModel.isPropertiesLocked else {
+            if !automatic { lockedWarning() }
+            return
+        }
+        isFittingSheet = true
+        camera.detectSheetPlacement(imageSize: image.size, currentRotation: viewModel.imageRotation,
+                                    timeout: automatic ? 2.5 : 1.2) { placement in
+            isFittingSheet = false
+            // The image may have changed or been locked while looking
+            guard viewModel.overlayImage === image, !viewModel.isPropertiesLocked else { return }
+            guard let placement else {
+                Haptics.warning()
+                showToast(ToastMessage(icon: "doc.viewfinder",
+                                       text: String(localized: "Couldn't find the sheet · show all of it, in good light"),
+                                       tint: Theme.danger, duration: 3.5))
+                return
+            }
+            let undo = viewModel.applyPlacement(offset: placement.offset, scale: placement.scale, rotation: placement.rotation)
+            Haptics.light()
+            showToast(ToastMessage(icon: "doc.viewfinder", text: String(localized: "Placed on the sheet"), duration: 8,
+                                   actionTitle: String(localized: "Undo"), action: {
+                viewModel.undoPlacement(undo)
+                Haptics.light()
+            }))
+        }
     }
 
     private func openCropFromPanel() { openCrop() }

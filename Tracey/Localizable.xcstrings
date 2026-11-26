@@ -275,6 +275,17 @@
         }
       }
     },
+    "Couldn't find the sheet · show all of it, in good light" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No encontré la hoja · que se vea completa y con buena luz"
+          }
+        }
+      }
+    },
     "Couldn't save the image" : {
       "localizations" : {
         "es" : {
@@ -426,6 +437,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Filtro"
+          }
+        }
+      }
+    },
+    "Fit to Sheet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Colocar en la hoja"
           }
         }
       }
@@ -692,6 +714,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bloqueada · arrastra y pellizca para mover la vista. Mantén presionado el candado para desbloquear."
+          }
+        }
+      }
+    },
+    "Looking for the sheet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buscando la hoja"
           }
         }
       }
@@ -969,6 +1002,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Acomódala y bloquéala"
+          }
+        }
+      }
+    },
+    "Placed on the sheet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Colocada en la hoja"
           }
         }
       }

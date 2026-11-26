@@ -425,6 +425,37 @@ class CameraViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Fit to sheet
+
+    /// What `undoPlacement` needs to go back
+    struct PlacementUndo {
+        let source: UIImage?
+        let offset: CGSize
+        let scale: CGFloat
+        let rotation: Double
+    }
+
+    /// Moves the image onto the sheet (animated, like Center Image)
+    func applyPlacement(offset: CGSize, scale: CGFloat, rotation: Double) -> PlacementUndo {
+        let undo = PlacementUndo(source: sourceImage, offset: imageOffset, scale: imageScale, rotation: imageRotation)
+        withAnimation(.easeInOut(duration: 0.35)) {
+            imageOffset = offset
+            imageScale = scale
+            imageRotation = rotation
+        }
+        return undo
+    }
+
+    /// Back to where the image was before `applyPlacement` (ignored if another image was loaded)
+    func undoPlacement(_ undo: PlacementUndo) {
+        guard sourceImage === undo.source else { return }
+        withAnimation(.easeInOut(duration: 0.35)) {
+            imageOffset = undo.offset
+            imageScale = undo.scale
+            imageRotation = undo.rotation
+        }
+    }
+
     func centerImage() {
         // Animación suave para centrar la imagen
         withAnimation(.easeInOut(duration: 0.3)) {
