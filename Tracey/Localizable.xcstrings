@@ -113,6 +113,16 @@
         }
       }
     },
+    "An hour of drawing becomes a %@ clip. Applies to your next recording." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una hora de dibujo se convierte en un clip de %@. Se aplica a tu próxima grabación."
+          }
+        }
+      }
+    },
     "App Icon" : {
       "localizations" : {
         "es" : {
@@ -1019,6 +1029,16 @@
         }
       }
     },
+    "Speed" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Velocidad"
+          }
+        }
+      }
+    },
     "Start time-lapse" : {
       "localizations" : {
         "es" : {
@@ -1085,6 +1105,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Se eliminarán la imagen y sus ajustes guardados."
+          }
+        }
+      }
+    },
+    "Time-Lapse Speed" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Velocidad del time-lapse"
           }
         }
       }

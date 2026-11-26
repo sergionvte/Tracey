@@ -3,8 +3,8 @@
 //  Tracey
 //
 //  DEBUG ONLY. The Simulator has no camera, so the time-lapse would never get a frame. When
-//  there is no capture device, this feeds the recorder a solid-color frame with a counter every
-//  2 s, so the pill / stop / save / share flow can be tested. Compiled out of Release builds.
+//  there is no capture device, this feeds the recorder a solid-color frame with a counter at the
+//  recorder's capture interval, so the pill / stop / save / share flow can be tested. Compiled out of Release builds.
 //
 
 #if DEBUG
@@ -27,7 +27,7 @@ final class SyntheticFrameSource {
     func start() {
         guard let recorder, timer == nil else { return }
         let timer = DispatchSource.makeTimerSource(queue: recorder.queue)
-        timer.schedule(deadline: .now() + 0.2, repeating: TimelapseRecorder.captureInterval)
+        timer.schedule(deadline: .now() + 0.2, repeating: recorder.captureInterval)
         timer.setEventHandler { [weak self] in self?.emitFrame() }
         timer.resume()
         self.timer = timer
@@ -41,8 +41,8 @@ final class SyntheticFrameSource {
     /// Runs on the recorder's queue
     private func emitFrame() {
         guard let recorder, let buffer = makeFrame(number: count) else { return }
-        // Exactly 2 s apart, so every frame passes the recorder's 2 s spacing check
-        let time = CMTime(seconds: Double(count) * TimelapseRecorder.captureInterval, preferredTimescale: 600)
+        // Exactly one interval apart, so every frame passes the recorder's spacing check
+        let time = CMTime(seconds: Double(count) * recorder.captureInterval, preferredTimescale: 600)
         count += 1
         recorder.consume(buffer, at: time)
     }

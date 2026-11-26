@@ -90,7 +90,7 @@ final class TimelapseController: ObservableObject {
     func start(cameraView: CameraUIView, interfaceOrientation: UIInterfaceOrientation) {
         guard phase == .idle else { return }
         discardLastClip()
-        let recorder = TimelapseRecorder()
+        let recorder = TimelapseRecorder(speed: TimelapseSpeed.current)
         recorder.onFrameLimitReached = { [weak self] in self?.autoStop(.timeLimit) }
         recorder.isPaused = isBackgrounded || isInterrupted
         self.recorder = recorder

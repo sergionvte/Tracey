@@ -134,7 +134,7 @@ struct TimelapsePill: View {
             : String(format: "%d:%02d", minutes, seconds)
     }
 
-    /// "0.6 s" under a minute (each second of drawing adds 1/60 s), then "1:02"
+    /// "0.6 s" under a minute, then "1:02"
     static func clipLength(_ duration: TimeInterval) -> String {
         duration < 60 ? String(format: "%.1f s", duration) : clock(duration)
     }

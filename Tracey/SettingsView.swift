@@ -2,8 +2,8 @@
 //  SettingsView.swift
 //  Tracey
 //
-//  App icon picker (colors and the Notebook special edition), help, support, privacy and the
-//  app version. Icons are drawn by Tools/make-icons.swift.
+//  Time-lapse speed, app icon picker (colors and the Notebook special edition), help, support,
+//  privacy and the app version. Icons are drawn by Tools/make-icons.swift.
 //
 
 import SwiftUI
@@ -49,6 +49,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selected = AppIconChoice(alternateName: UIApplication.shared.alternateIconName)
     @State private var iconError = false
+    @AppStorage(TimelapseSpeed.storageKey) private var timelapseSpeed = TimelapseSpeed.default
 
     private var version: String {
         let info = Bundle.main.infoDictionary
@@ -60,6 +61,21 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    Picker("Speed", selection: $timelapseSpeed) {
+                        ForEach(TimelapseSpeed.allCases) { speed in
+                            Text(speed.label).tag(speed)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.vertical, 4)
+                    .onChange(of: timelapseSpeed) { _, _ in Haptics.light() }
+                } header: {
+                    Text("Time-Lapse Speed")
+                } footer: {
+                    Text("An hour of drawing becomes a \(timelapseSpeed.clipLengthPerHour) clip. Applies to your next recording.")
+                }
+
                 Section {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 84), spacing: 12)], spacing: 16) {
                         ForEach(AppIconChoice.colors) { choice in

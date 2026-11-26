@@ -3,19 +3,45 @@
 //  Tracey
 //
 //  Writes a time-lapse of the raw camera feed (paper and drawing, no reference overlay): one
-//  frame every 2 s of active recording, played back at 30 fps (60× speed).
+//  frame every `speed.captureInterval` seconds of active recording, played back at 30 fps.
 //
 
 import AVFoundation
 import VideoToolbox
 
-final class TimelapseRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
+/// How much faster than real time the clip plays. Chosen in Settings; a recording keeps the
+/// speed it started with.
+enum TimelapseSpeed: Int, CaseIterable, Identifiable {
+    case x30 = 30, x60 = 60, x120 = 120, x240 = 240
+
+    static let storageKey = "timelapseSpeed"
+    static let `default` = TimelapseSpeed.x60
+
+    /// The speed saved in Settings
+    static var current: TimelapseSpeed {
+        TimelapseSpeed(rawValue: UserDefaults.standard.integer(forKey: storageKey)) ?? .default
+    }
+
+    var id: Int { rawValue }
+
     /// Seconds of drawing between kept frames
-    static let captureInterval: Double = 2.0
+    var captureInterval: Double { Double(rawValue) / Double(TimelapseRecorder.playbackFPS) }
+
+    /// "60×"
+    var label: String { "\(rawValue)×" }
+
+    /// Clip length for one hour of drawing, e.g. "1:00"
+    var clipLengthPerHour: String {
+        let seconds = 3600 / rawValue
+        return String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+}
+
+final class TimelapseRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     static let playbackFPS: Int32 = 30
-    /// 3 hours of recording → a 3:00 clip
-    static let maxFrames = 5_400
-    /// Fewer frames than this (under 20 s of drawing) isn't worth saving
+    /// Recording stops by itself after 3 hours of drawing
+    static let maxRecordingTime: Double = 3 * 60 * 60
+    /// Fewer frames than this (a third of a second of clip) isn't worth saving
     static let minFrames = 10
     /// Long side of the output, at most
     static let maxLongSide = 1920
@@ -30,6 +56,11 @@ final class TimelapseRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDel
     /// Frames are delivered and written on this serial queue
     let queue = DispatchQueue(label: "tracey.timelapse.writer", qos: .utility)
     let url: URL
+    let speed: TimelapseSpeed
+    /// Seconds of drawing between kept frames
+    let captureInterval: Double
+    /// 3 hours of drawing, in frames
+    let maxFrames: Int
 
     /// Called on the main queue when the 3-hour limit is reached
     var onFrameLimitReached: (() -> Void)?
@@ -57,7 +88,10 @@ final class TimelapseRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDel
 
     private let startDate = Date()
 
-    override init() {
+    init(speed: TimelapseSpeed) {
+        self.speed = speed
+        captureInterval = speed.captureInterval
+        maxFrames = Int(Self.maxRecordingTime / speed.captureInterval)
         try? FileManager.default.createDirectory(at: Self.directory, withIntermediateDirectories: true)
         url = Self.directory.appendingPathComponent("\(Self.filePrefix)\(UUID().uuidString).mov")
         super.init()
@@ -98,12 +132,12 @@ final class TimelapseRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDel
         consume(pixelBuffer, at: CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
     }
 
-    /// Must be called on `queue`. Keeps a frame only when it is at least 2 s after the last kept
-    /// one and recording isn't paused; each kept frame is the next 1/30 s of the clip, so pauses
+    /// Must be called on `queue`. Keeps a frame only when it is at least `captureInterval` after
+    /// the last kept one and recording isn't paused; each kept frame is the next 1/30 s of the clip, so pauses
     /// leave no gap.
     func consume(_ pixelBuffer: CVPixelBuffer, at time: CMTime) {
         guard !isStopped, !didFail, !isPaused else { return }
-        if let last = lastKeptTime, CMTimeGetSeconds(CMTimeSubtract(time, last)) < Self.captureInterval {
+        if let last = lastKeptTime, CMTimeGetSeconds(CMTimeSubtract(time, last)) < captureInterval {
             return
         }
         if writer == nil, !startWriter(sizedFrom: pixelBuffer) {
@@ -117,7 +151,7 @@ final class TimelapseRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDel
             lastKeptTime = time
             frameIndex += 1
             lock.lock(); _framesWritten = Int(frameIndex); lock.unlock()
-            if frameIndex >= Self.maxFrames {
+            if frameIndex >= maxFrames {
                 isStopped = true
                 DispatchQueue.main.async { [weak self] in self?.onFrameLimitReached?() }
             }
