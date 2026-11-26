@@ -16,6 +16,9 @@ struct ContentView: View {
     @State private var isFittingSheet = false
     /// A new image came from Photos: run the automatic crop / fit once the picker is gone
     @State private var pendingOpenActions = false
+    /// The picker sheet is on screen, including its closing animation (`showingImagePicker`
+    /// turns false as soon as it starts closing; nothing else can be presented until it's gone)
+    @State private var isPickerOnScreen = false
     /// "How to Use Tracey" from Settings: the tour opens once the sheet is gone
     @State private var tourAfterSettings = false
     @State private var showingControls = true
@@ -387,12 +390,13 @@ struct ContentView: View {
             Text("Free up at least 1 GB to record a time-lapse.")
         }
         .fullScreenCover(item: $cropSession, content: cropScreen)
-        .sheet(isPresented: $showingImagePicker, onDismiss: runOpenActionsIfNeeded) {
+        .sheet(isPresented: $showingImagePicker, onDismiss: pickerDismissed) {
             // The image can arrive before or after the picker finishes closing
             ImagePicker(selectedImage: $viewModel.selectedImageFromGallery, onImagePicked: { _ in
                 pendingOpenActions = true
                 runOpenActionsIfNeeded()
             })
+            .onAppear { isPickerOnScreen = true }
         }
         .sheet(isPresented: $showingSettings, onDismiss: {
             if tourAfterSettings {
@@ -609,10 +613,16 @@ struct ContentView: View {
 
     private func fitToSheetFromButton() { fitToSheet(automatic: false) }
 
+    /// The picker has finished closing: now the crop screen can be presented
+    private func pickerDismissed() {
+        isPickerOnScreen = false
+        runOpenActionsIfNeeded()
+    }
+
     /// "Crop on Open" and "Fit to Sheet on Open" (Settings), for a new image from Photos: crop
     /// first, then fit once the crop screen closes. Waits for the picker and the tour to close.
     private func runOpenActionsIfNeeded() {
-        guard pendingOpenActions, !showingImagePicker, !isTourPresented, viewModel.overlayImage != nil else { return }
+        guard pendingOpenActions, !isPickerOnScreen, !isTourPresented, viewModel.overlayImage != nil else { return }
         pendingOpenActions = false
         let fit = OpenImageOptions.autoFit
         if OpenImageOptions.autoCrop {

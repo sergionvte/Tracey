@@ -39,7 +39,9 @@ struct ImagePicker: UIViewControllerRepresentable {
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
             if let result = results.first {
                 result.itemProvider.loadObject(ofClass: UIImage.self) { image, error in
-                    if let uiImage = image as? UIImage {
+                    if let picked = image as? UIImage {
+                        // Straighten and size it here, off the main thread
+                        let uiImage = ImageCropping.normalizedUp(picked)
                         DispatchQueue.main.async {
                             self.parent.selectedImage = uiImage
                             self.parent.onImagePicked?(uiImage) // Llama el callback si existe

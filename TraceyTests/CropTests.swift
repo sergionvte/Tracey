@@ -159,3 +159,21 @@ struct CropModelTests {
         #expect(viewModel.overlayImage?.size == CGSize(width: 20, height: 20))
     }
 }
+
+struct NormalizeTests {
+    @Test func bigSidewaysPhotoIsStraightenedAt8BitAndCapped() throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let raw = UIGraphicsImageRenderer(size: CGSize(width: 6000, height: 4000), format: format).image { context in
+            UIColor.gray.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 6000, height: 4000))
+        }
+        let sideways = UIImage(cgImage: raw.cgImage!, scale: 1, orientation: .right)
+        let upright = ImageCropping.normalizedUp(sideways)
+        let cgImage = try #require(upright.cgImage)
+        #expect(upright.imageOrientation == .up)
+        #expect(max(cgImage.width, cgImage.height) <= 4096)
+        #expect(cgImage.height > cgImage.width) // portrait, as it was seen
+        #expect(cgImage.bitsPerComponent == 8)
+    }
+}

@@ -15,13 +15,22 @@ enum ImageCropping {
     /// Smallest crop side, as a fraction of the image (keeps a crop from collapsing)
     static let minimumSide: CGFloat = 0.05
 
-    /// `image` redrawn so its pixels are upright (`.up`). Crop rectangles are expressed in this
-    /// space, so a photo taken sideways crops the part that was seen.
-    static func normalizedUp(_ image: UIImage) -> UIImage {
-        if image.imageOrientation == .up, image.cgImage != nil { return image }
+    /// Longest side kept for a reference, in pixels: plenty to trace, and a 48 MP photo doesn't
+    /// stay in memory at full size
+    static let maxLongSide: CGFloat = 4096
+
+    /// `image` redrawn so its pixels are upright (`.up`), 8 bits per channel, at most
+    /// `maxLongSide` pixels long (same point size). Crop rectangles are expressed in this space,
+    /// so a photo taken sideways crops the part that was seen. Safe off the main thread.
+    static func normalizedUp(_ image: UIImage, maxLongSide: CGFloat = ImageCropping.maxLongSide) -> UIImage {
+        let longSide = max(image.size.width, image.size.height) * image.scale
+        let factor = longSide > maxLongSide ? maxLongSide / longSide : 1
+        if image.imageOrientation == .up, image.cgImage != nil, factor == 1 { return image }
         let format = UIGraphicsImageRendererFormat()
-        format.scale = image.scale
+        format.scale = image.scale * factor
         format.opaque = false
+        // Extended range would double the memory of every photo on P3 screens
+        format.preferredRange = .standard
         return UIGraphicsImageRenderer(size: image.size, format: format).image { _ in
             image.draw(in: CGRect(origin: .zero, size: image.size))
         }

@@ -45,3 +45,19 @@ struct RecorderFrameTapTests {
         recorder.finish { _ in }
     }
 }
+
+struct SheetAcceptanceTests {
+    private typealias Quad = SheetGeometry.Quad
+
+    @Test func fullFrameIsNotASheet() {
+        let full = Quad(topLeft: CGPoint(x: 0.005, y: 0.004), topRight: CGPoint(x: 1, y: 0.004),
+                        bottomRight: CGPoint(x: 1, y: 0.996), bottomLeft: CGPoint(x: 0.007, y: 0.996))
+        #expect(!SheetDetector.isAcceptable(full))
+    }
+
+    @Test func aSheetInTheFrameIsAccepted() {
+        let sheet = Quad(topLeft: CGPoint(x: 0.2, y: 0.22), topRight: CGPoint(x: 0.8, y: 0.25),
+                         bottomRight: CGPoint(x: 0.78, y: 0.78), bottomLeft: CGPoint(x: 0.18, y: 0.75))
+        #expect(SheetDetector.isAcceptable(sheet))
+    }
+}

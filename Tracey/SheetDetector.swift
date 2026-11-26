@@ -53,8 +53,14 @@ enum SheetDetector {
                                    bottomRight: observation.bottomRight, bottomLeft: observation.bottomLeft)
                     .map { CGPoint(x: $0.x, y: 1 - $0.y) }
             }
-            .filter { SheetGeometry.isPlausible($0, in: CGSize(width: 1, height: 1)) }
+            .filter(isAcceptable)
             .max { area($0) < area($1) }
+    }
+
+    /// A plausible sheet that doesn't fill the whole frame: a quad over ~90% of the buffer is
+    /// the frame itself (empty desk, or a guess), not paper to fit to.
+    static func isAcceptable(_ quad: SheetGeometry.Quad) -> Bool {
+        SheetGeometry.isPlausible(quad, in: CGSize(width: 1, height: 1)) && area(quad) <= 0.9
     }
 
     private static func area(_ quad: SheetGeometry.Quad) -> CGFloat {
