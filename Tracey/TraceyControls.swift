@@ -377,7 +377,6 @@ struct AdjustPanel: View {
     /// Natural height of everything in the panel (to make room for it without scrolling)
     var onContentHeight: (CGFloat) -> Void = { _ in }
 
-    @State private var contentHeight: CGFloat = 0
     /// −180° and 180° are the same angle (stored as 180): remember which end of the slider was
     /// used last, so dragging to −180 doesn't make the thumb jump to the other end
     @State private var halfTurnIsNegative = false
@@ -397,13 +396,15 @@ struct AdjustPanel: View {
     var body: some View {
         ScrollView {
             content
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
-                    contentHeight = $0
-                    onContentHeight($0)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                    withAnimation(Theme.spring) { onContentHeight(height) }
                 }
         }
         .scrollBounceBehavior(.basedOnSize)
-        .frame(height: min(max(contentHeight, 1), maxHeight))
+        // As tall as the content, up to maxHeight (then it scrolls). Sized by layout itself, in
+        // the same pass as the rows, so the panel's edge and its rows animate together.
+        .frame(maxHeight: maxHeight)
+        .fixedSize(horizontal: false, vertical: true)
         .tint(Theme.accent)
         .frame(maxWidth: 440)
         // Slightly darker glass so labels stay readable over a busy reference or bright paper
@@ -444,7 +445,11 @@ struct AdjustPanel: View {
                     onDetail: { viewModel.setOutlineDetail($0) },
                     onColor: { viewModel.setOutlineColor($0) }
                 )
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                // Fade only: sliding them from the top drew them over the filter tiles
+                .transition(.asymmetric(
+                    insertion: .opacity.animation(.easeOut(duration: 0.2).delay(0.08)),
+                    removal: .opacity.animation(.easeOut(duration: 0.1))
+                ))
             }
 
             AdjustRow(
