@@ -321,6 +321,8 @@ struct AdjustPanel: View {
     let isLocked: Bool
     /// Room between the top chrome and the dock; taller content scrolls inside
     var maxHeight: CGFloat = .infinity
+    /// Opens the crop screen
+    var onCrop: () -> Void = {}
 
     @State private var contentHeight: CGFloat = 0
 
@@ -433,6 +435,8 @@ struct AdjustPanel: View {
                     onHorizontal: { viewModel.flipOverlayImage() },
                     onVertical: { viewModel.flipOverlayImageVertically() }
                 )
+
+                CropRow(isCropped: viewModel.cropRect != ImageCropping.unitRect, action: onCrop)
             }
             .disabled(isLocked)
             .opacity(isLocked ? 0.45 : 1)
@@ -660,6 +664,42 @@ private struct OutlineControls: View {
         .buttonStyle(.plain)
         .accessibilityLabel(color.presetName ?? "")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+/// Opens the crop screen. Shows when the image is cropped (it can always go back).
+private struct CropRow: View {
+    let isCropped: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button {
+            Haptics.light()
+            action()
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "crop")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .frame(width: 20)
+                Text("Crop")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.white)
+                Spacer()
+                if isCropped {
+                    Text("Cropped")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Theme.accent)
+                }
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue(isCropped ? String(localized: "Cropped") : "")
     }
 }
 

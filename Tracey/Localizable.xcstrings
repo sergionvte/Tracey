@@ -295,6 +295,28 @@
         }
       }
     },
+    "Crop" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recortar"
+          }
+        }
+      }
+    },
+    "Cropped" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recortada"
+          }
+        }
+      }
+    },
     "Custom color" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -367,6 +389,17 @@
         }
       }
     },
+    "Double-tap to turn the frame." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toca dos veces para girar el marco."
+          }
+        }
+      }
+    },
     "Drag, pinch & rotate to place it · then tap Lock" : {
       "localizations" : {
         "es" : {
@@ -413,6 +446,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Enfocar al centro"
+          }
+        }
+      }
+    },
+    "Free" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Libre"
           }
         }
       }
@@ -538,6 +582,17 @@
         }
       }
     },
+    "Image cropped" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imagen recortada"
+          }
+        }
+      }
+    },
     "Image removed" : {
       "localizations" : {
         "es" : {
@@ -575,6 +630,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Menos detalle"
+          }
+        }
+      }
+    },
+    "Letter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carta"
           }
         }
       }
@@ -989,6 +1055,17 @@
         }
       }
     },
+    "Reset" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restablecer"
+          }
+        }
+      }
+    },
     "Reset %@" : {
       "localizations" : {
         "es" : {
@@ -1145,6 +1222,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Velocidad"
+          }
+        }
+      }
+    },
+    "Square" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuadrado"
           }
         }
       }
@@ -1496,6 +1584,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Blanco"
+          }
+        }
+      }
+    },
+    "landscape" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "horizontal"
+          }
+        }
+      }
+    },
+    "portrait" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "vertical"
           }
         }
       }

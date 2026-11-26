@@ -10,6 +10,8 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var showingImagePicker = false
     @State private var showingSettings = false
+    /// The crop screen, while open
+    @State private var cropSession: CropSession?
     /// "How to Use Tracey" from Settings: the tour opens once the sheet is gone
     @State private var tourAfterSettings = false
     @State private var showingControls = true
@@ -47,6 +49,10 @@ struct ContentView: View {
     private let snapThreshold: CGFloat = 30 // Distance in points to activate snap
 
     var body: some View {
+        presentations(on: screen)
+    }
+
+    private var screen: some View {
         GeometryReader { geometry in
             // The camera preview fills the WHOLE screen (it ignores the safe area), so its center
             // is the screen center — not the safe-area center, which sits lower because the top
@@ -192,47 +198,7 @@ struct ContentView: View {
                 .accessibilityHidden(isTourPresented)
 
                 // Toast + Adjust panel, bottom-anchored just above the dock
-                VStack(spacing: 0) {
-                    Spacer(minLength: 0)
-
-                    // Always in the hierarchy (it can hold a button, e.g. Undo): fading it with
-                    // opacity/hit testing can't leave an invisible toast catching touches.
-                    let isToastVisible = toast != nil
-                    ToastView(
-                        message: lastToast ?? ToastMessage(icon: "info.circle", text: ""),
-                        onAction: performToastAction
-                    )
-                    .opacity(isToastVisible ? 1 : 0)
-                    .offset(y: isToastVisible ? 0 : 12)
-                    .scaleEffect(isToastVisible ? 1 : 0.96)
-                    // Only a toast with a button takes touches; others let taps reach the screen
-                    .allowsHitTesting(isToastVisible && toast?.actionTitle != nil)
-                    .accessibilityHidden(!isToastVisible)
-                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { toastFrame = $0 }
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, isToastVisible ? 12 : 0)
-                    // An invisible toast takes no space
-                    .frame(height: isToastVisible ? nil : 0, alignment: .bottom)
-
-                    // Adjust panel + dock as one item so the hidden panel adds no spacing.
-                    // The panel is always in the hierarchy and fades/slides in place: removing it
-                    // with a transition while the ⋯ menu was closing (Remove Image) left an
-                    // invisible panel over the toast that swallowed the Undo tap.
-                    let showsAdjust = showingImageControls && viewModel.overlayImage != nil
-                    let panelMaxHeight = max(160, geometry.size.height - Self.dockReservedHeight - 12 - topChromeBottom)
-                    AdjustPanel(viewModel: viewModel, isLocked: viewModel.isPropertiesLocked, maxHeight: panelMaxHeight)
-                        .padding(.horizontal, 16)
-                        // Hidden: takes no height, draws nothing, takes no touches
-                        .frame(height: showsAdjust ? nil : 0, alignment: .bottom)
-                        .opacity(showsAdjust ? 1 : 0)
-                        .offset(y: showsAdjust ? 0 : 24)
-                        .allowsHitTesting(showsAdjust)
-                        .accessibilityHidden(!showsAdjust)
-                }
-                .padding(.bottom, Self.dockReservedHeight)
-                .opacity(showingControls ? 1 : 0)
-                .allowsHitTesting(showingControls)
-                .accessibilityHidden(isTourPresented)
+                toastAndAdjustPanel(geometry)
 
                 // Dock pinned to the bottom safe area: its position never depends on the toast,
                 // the panel or the text size
@@ -396,6 +362,11 @@ struct ContentView: View {
         .onChange(of: timelapse.phase) { _, phase in
             viewModel.isCaptureModeFrozen = phase != .idle
         }
+    }
+
+    /// Alerts, sheets and the crop screen (kept apart from `screen` so the type-checker copes)
+    private func presentations(on content: some View) -> some View {
+        content
         .alert("Can't save time-lapses", isPresented: alertBinding(.photosDenied)) {
             Button("Open Settings") {
                 if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
@@ -409,6 +380,7 @@ struct ContentView: View {
         } message: {
             Text("Free up at least 1 GB to record a time-lapse.")
         }
+        .fullScreenCover(item: $cropSession, content: cropScreen)
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(selectedImage: $viewModel.selectedImageFromGallery) // Use the property that clears loadedImageName
         }
@@ -554,6 +526,101 @@ struct ContentView: View {
     private func lockedWarning() {
         Haptics.warning()
         showToast(ToastMessage(icon: "lock.fill", text: String(localized: "Unlock to edit"), tint: Theme.accent))
+    }
+
+    // MARK: - Crop
+
+    struct CropSession: Identifiable {
+        let id = UUID()
+        let image: UIImage
+        let rect: CGRect
+        /// Runs once the crop screen closes (Done or Cancel)
+        var then: (() -> Void)?
+    }
+
+    /// Opens the crop screen on the full photo. `then` runs when it closes.
+    private func openCrop(then: (() -> Void)? = nil) {
+        guard !viewModel.isPropertiesLocked else {
+            lockedWarning()
+            return
+        }
+        guard let source = viewModel.sourceImage else { return }
+        cropSession = CropSession(image: source, rect: viewModel.cropRect, then: then)
+    }
+
+    /// Toast and Adjust panel, bottom-anchored just above the dock
+    private func toastAndAdjustPanel(_ geometry: GeometryProxy) -> some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: 0)
+
+            // Always in the hierarchy (it can hold a button, e.g. Undo): fading it with
+            // opacity/hit testing can't leave an invisible toast catching touches.
+            let isToastVisible = toast != nil
+            ToastView(
+                message: lastToast ?? ToastMessage(icon: "info.circle", text: ""),
+                onAction: performToastAction
+            )
+            .opacity(isToastVisible ? 1 : 0)
+            .offset(y: isToastVisible ? 0 : 12)
+            .scaleEffect(isToastVisible ? 1 : 0.96)
+            // Only a toast with a button takes touches; others let taps reach the screen
+            .allowsHitTesting(isToastVisible && toast?.actionTitle != nil)
+            .accessibilityHidden(!isToastVisible)
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { toastFrame = $0 }
+            .padding(.horizontal, 24)
+            .padding(.bottom, isToastVisible ? 12 : 0)
+            // An invisible toast takes no space
+            .frame(height: isToastVisible ? nil : 0, alignment: .bottom)
+
+            // Adjust panel + dock as one item so the hidden panel adds no spacing.
+            // The panel is always in the hierarchy and fades/slides in place: removing it
+            // with a transition while the ⋯ menu was closing (Remove Image) left an
+            // invisible panel over the toast that swallowed the Undo tap.
+            let showsAdjust = showingImageControls && viewModel.overlayImage != nil
+            let panelMaxHeight = max(160, geometry.size.height - Self.dockReservedHeight - 12 - topChromeBottom)
+            AdjustPanel(viewModel: viewModel, isLocked: viewModel.isPropertiesLocked, maxHeight: panelMaxHeight,
+                        onCrop: openCropFromPanel)
+                .padding(.horizontal, 16)
+                // Hidden: takes no height, draws nothing, takes no touches
+                .frame(height: showsAdjust ? nil : 0, alignment: .bottom)
+                .opacity(showsAdjust ? 1 : 0)
+                .offset(y: showsAdjust ? 0 : 24)
+                .allowsHitTesting(showsAdjust)
+                .accessibilityHidden(!showsAdjust)
+        }
+        .padding(.bottom, Self.dockReservedHeight)
+        .opacity(showingControls ? 1 : 0)
+        .allowsHitTesting(showingControls)
+        .accessibilityHidden(isTourPresented)
+    }
+
+    private func openCropFromPanel() { openCrop() }
+
+    private func cropScreen(_ session: CropSession) -> some View {
+        CropView(
+            image: session.image,
+            initialRect: session.rect,
+            onCancel: {
+                cropSession = nil
+                session.then?()
+            },
+            onDone: { rect in
+                cropSession = nil
+                applyCrop(rect)
+                session.then?()
+            }
+        )
+    }
+
+    private func applyCrop(_ rect: CGRect) {
+        let layoutSize = cameraUIView?.overlayLayoutRect.size ?? .zero
+        guard let undo = viewModel.applyCrop(rect, layoutSize: layoutSize) else { return }
+        Haptics.light()
+        showToast(ToastMessage(icon: "crop", text: String(localized: "Image cropped"), duration: 8,
+                               actionTitle: String(localized: "Undo"), action: {
+            viewModel.undoCrop(undo)
+            Haptics.light()
+        }))
     }
 
     private func removeImage() {
