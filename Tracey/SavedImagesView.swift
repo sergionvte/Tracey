@@ -116,7 +116,9 @@ struct SavedReferenceCard: View {
         .accessibilityAddTraits(.isButton)
         .task(id: configuration.id) {
             guard thumbnail == nil, let full = storage.loadImage(named: configuration.imageName) else { return }
-            let small = await full.byPreparingThumbnail(ofSize: CGSize(width: 480, height: 480)) ?? full
+            // The part of the photo that is used
+            let shown = configuration.cropRect.flatMap { ImageCropping.crop(full, to: $0) } ?? full
+            let small = await shown.byPreparingThumbnail(ofSize: CGSize(width: 480, height: 480)) ?? shown
             // Show the reference the way it was saved: with its filter applied
             if let filter = configuration.filter.flatMap(ReferenceFilter.init(rawValue:)), filter != .original {
                 let outline = configuration.outlineStyle

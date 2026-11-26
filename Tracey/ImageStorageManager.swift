@@ -24,7 +24,7 @@ class ImageStorageManager: ObservableObject {
     }
 
     // MARK: - Overwrite if a configuration with the same image already exists
-    func saveImageConfiguration(image: UIImage, opacity: Double, scale: Double, rotation: Double, offsetX: Double = 0, offsetY: Double = 0, isFlipped: Bool = false, isFlippedVertically: Bool = false, cameraZoom: CGFloat = 1.0, captureMode: CameraCaptureMode? = nil, filter: String? = nil, gridDivisions: Int? = nil, outlineStyle: OutlineStyle = OutlineStyle(), overwriteImageName: String? = nil) -> Bool {
+    func saveImageConfiguration(image: UIImage, opacity: Double, scale: Double, rotation: Double, offsetX: Double = 0, offsetY: Double = 0, isFlipped: Bool = false, isFlippedVertically: Bool = false, cameraZoom: CGFloat = 1.0, captureMode: CameraCaptureMode? = nil, filter: String? = nil, gridDivisions: Int? = nil, outlineStyle: OutlineStyle = OutlineStyle(), cropRect: CGRect? = nil, overwriteImageName: String? = nil) -> Bool {
         let imageName: String
         if let overwriteName = overwriteImageName {
             imageName = overwriteName
@@ -55,7 +55,8 @@ class ImageStorageManager: ObservableObject {
                     captureMode: captureMode,
                     filter: filter,
                     gridDivisions: gridDivisions,
-                    outlineStyle: outlineStyle
+                    outlineStyle: outlineStyle,
+                    cropRect: cropRect
                 )
                 savedConfigurations[idx] = newConfig
                 saveConfigurations()
@@ -75,7 +76,8 @@ class ImageStorageManager: ObservableObject {
                 captureMode: captureMode,
                 filter: filter,
                 gridDivisions: gridDivisions,
-                outlineStyle: outlineStyle
+                outlineStyle: outlineStyle,
+                cropRect: cropRect
             )
             savedConfigurations.append(configuration)
             saveConfigurations()

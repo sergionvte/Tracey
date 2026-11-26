@@ -16,7 +16,13 @@ class CameraViewModel: ObservableObject {
     // Weak reference to the camera view to drive zoom / capture mode
     weak var cameraUIViewRef: CameraUIView?
 
-    /// The reference as picked/loaded. Never filtered: it's what gets saved, undone and stored.
+    /// The full photo as picked or loaded, upright. It is what gets saved; a crop never
+    /// discards it, so cropping again can always go back to the whole photo.
+    @Published private(set) var sourceImage: UIImage?
+    /// Part of `sourceImage` that is used, normalized 0–1 (origin top-left)
+    @Published private(set) var cropRect = ImageCropping.unitRect
+
+    /// What is traced: `sourceImage` cut to `cropRect`. Never filtered.
     @Published var overlayImage: UIImage? = nil {
         didSet {
             if overlayImage !== oldValue { overlayImageChanged() }
@@ -222,6 +228,49 @@ class CameraViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Crop
+
+    /// What `undoCrop` needs to go back
+    struct CropUndo {
+        let source: UIImage
+        let cropRect: CGRect
+        let scale: CGFloat
+        let offset: CGSize
+    }
+
+    /// Shows only `rect` of the full photo. The part that stays keeps its place and size on
+    /// screen (`layoutSize` = the overlay layout rect). Returns nil when nothing changed.
+    func applyCrop(_ rect: CGRect, layoutSize: CGSize) -> CropUndo? {
+        guard let source = sourceImage else { return nil }
+        let newCrop = ImageCropping.sanitized(rect)
+        guard newCrop != cropRect, let cropped = ImageCropping.crop(source, to: newCrop) else { return nil }
+        let undo = CropUndo(source: source, cropRect: cropRect, scale: imageScale, offset: imageOffset)
+        let placement = ImageCropping.placementAfterCrop(
+            sourceSize: source.size, oldCrop: cropRect, newCrop: newCrop, layoutSize: layoutSize,
+            scale: imageScale, offset: imageOffset, rotation: imageRotation,
+            isFlipped: isFlipped, isFlippedVertically: isFlippedVertically)
+        setCrop(newCrop, image: cropped, scale: placement.scale, offset: placement.offset)
+        return undo
+    }
+
+    /// Back to the crop and placement before `applyCrop` (ignored if another image was loaded)
+    func undoCrop(_ undo: CropUndo) {
+        guard sourceImage === undo.source,
+              let image = ImageCropping.crop(undo.source, to: undo.cropRect) else { return }
+        setCrop(undo.cropRect, image: image, scale: undo.scale, offset: undo.offset)
+    }
+
+    private func setCrop(_ rect: CGRect, image: UIImage, scale: CGFloat, offset: CGSize) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            cropRect = rect
+            imageScale = scale
+            imageOffset = offset
+            overlayImage = image
+        }
+    }
+
     /// Edges found at 120 px turn into a solid blob: trace at 480 px, then shrink.
     private static func outlineThumbnail(of source: UIImage, style: OutlineStyle) -> UIImage? {
         let renderer = ReferenceFilterRenderer.shared
@@ -265,6 +314,8 @@ class CameraViewModel: ObservableObject {
         let filter: ReferenceFilter
         let gridDivisions: Int
         let outlineStyle: OutlineStyle
+        let sourceImage: UIImage?
+        let cropRect: CGRect
     }
 
     /// Removes the reference and returns what is needed to undo it.
@@ -283,12 +334,16 @@ class CameraViewModel: ObservableObject {
                 cameraZoom: cameraUIViewRef?.getCurrentZoomFactor() ?? 1.0,
                 filter: referenceFilter,
                 gridDivisions: gridDivisions,
-                outlineStyle: outlineStyle
+                outlineStyle: outlineStyle,
+                sourceImage: sourceImage,
+                cropRect: cropRect
             )
         }
         withAnimation(.easeInOut(duration: 0.2)) {
             overlayImage = nil
         }
+        sourceImage = nil
+        cropRect = ImageCropping.unitRect
         setFilterForNewImage(.original)
         gridDivisions = 0
         imageStorage.loadedImageName = nil // Limpiar referencia al nombre de imagen cargada
@@ -319,6 +374,8 @@ class CameraViewModel: ObservableObject {
             setFilterForNewImage(removed.filter)
             gridDivisions = removed.gridDivisions
             outlineStyle = removed.outlineStyle
+            sourceImage = removed.sourceImage ?? removed.image
+            cropRect = removed.cropRect
         }
         withAnimation(.easeInOut(duration: 0.2)) {
             overlayImage = removed.image
@@ -333,9 +390,14 @@ class CameraViewModel: ObservableObject {
             setFilterForNewImage(configuration.filter.flatMap(ReferenceFilter.init(rawValue:)) ?? .original)
             // The entry's own outline; loading doesn't change the preferred color
             outlineStyle = configuration.outlineStyle
+            // The saved file is the full photo; show the part that was kept
+            let upright = ImageCropping.normalizedUp(image)
+            let crop = ImageCropping.sanitized(configuration.cropRect)
+            sourceImage = upright
+            cropRect = crop
             let savedGrid = configuration.gridDivisions ?? 0
             gridDivisions = [3, 4].contains(savedGrid) ? savedGrid : 0
-            overlayImage = image
+            overlayImage = ImageCropping.crop(upright, to: crop) ?? upright
             imageStorage.loadedImageName = configuration.imageName // Guardar el nombre de la imagen cargada
 
             // Validar todos los valores antes de asignarlos
@@ -457,7 +519,10 @@ class CameraViewModel: ObservableObject {
                     setFilterForNewImage(.original) // a fresh image starts unfiltered
                     gridDivisions = 0
                     outlineStyle = OutlineStyle(detail: 0.5, color: .preferred)
-                    overlayImage = newValue
+                    let upright = ImageCropping.normalizedUp(newValue)
+                    sourceImage = upright
+                    cropRect = ImageCropping.unitRect
+                    overlayImage = upright
                 }
                 imageStorage.loadedImageName = nil
                 isFlipped = false
@@ -471,7 +536,8 @@ class CameraViewModel: ObservableObject {
     }
 
     func saveCurrentConfiguration(cameraZoom: CGFloat) -> Bool {
-        guard let image = overlayImage else { return false }
+        // The full photo is stored with its crop rectangle
+        guard let image = sourceImage ?? overlayImage else { return false }
 
         let safeOpacity = imageOpacity.isFinite ? imageOpacity : Self.defaultOpacity
         let safeScale = imageScale.isFinite && imageScale > 0 ? imageScale : 1.0
@@ -497,6 +563,7 @@ class CameraViewModel: ObservableObject {
             filter: referenceFilter.rawValue,
             gridDivisions: gridDivisions,
             outlineStyle: outlineStyle,
+            cropRect: cropRect == ImageCropping.unitRect ? nil : cropRect,
             overwriteImageName: prevLoadedName
         )
 
