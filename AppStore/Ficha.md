@@ -184,10 +184,12 @@ What sets Tracey apart from other tracing apps: a single upfront price with noth
 | Cifrado | Ya está declarado en la app (`ITSAppUsesNonExemptEncryption = NO`) |
 
 ### Capturas (las que más venden, en este orden)
+Plantilla para armarlas: https://claude.ai/artifact/XA8GEjWKDhvPvbC4f3yFv4 (privada; sube cada captura y descarga los PNG).
 1. Un dibujo a medio calcar con la imagen encima. Texto: **"Calca cualquier imagen"**
-2. El filtro Contorno sobre una foto. Texto: **"Convierte fotos en líneas"**
-3. El time-lapse terminado. Texto: **"Graba tu proceso"**
-4. Ajustes de opacidad y la cuadrícula. Texto: **"Proporciones exactas"**
-5. Un fondo liso con letras grandes. Texto: **"Sin anuncios. Sin cuenta. Sin internet."** (Nada de precios en las capturas, por la regla 2.3.7.)
+2. El filtro Contorno con el panel Ajustar abierto (Detalle y colores). Texto: **"Convierte fotos en líneas"**
+3. Justo después de «Colocar en la hoja». Texto: **"Se acomoda sola en tu hoja"**
+4. El time-lapse grabando o terminado. Texto: **"Graba tu proceso"**
+5. La pantalla de recorte (Carta) o la cuadrícula 3×3. Texto: **"Recorta y cuadra"**
+6. Solo texto. **"Sin anuncios. Sin cuenta. Sin internet."** (Nada de precios en las capturas, por la regla 2.3.7.)
 
 Tamaños obligatorios: iPhone 6.9" (1320 × 2868) y, como la app también es para iPad, iPad 13" (2064 × 2752).
