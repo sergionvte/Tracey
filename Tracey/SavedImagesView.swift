@@ -119,8 +119,9 @@ struct SavedReferenceCard: View {
             let small = await full.byPreparingThumbnail(ofSize: CGSize(width: 480, height: 480)) ?? full
             // Show the reference the way it was saved: with its filter applied
             if let filter = configuration.filter.flatMap(ReferenceFilter.init(rawValue:)), filter != .original {
+                let outline = configuration.outlineStyle
                 thumbnail = await Task.detached(priority: .utility) {
-                    ReferenceFilterRenderer.shared.render(small, filter: filter, maxLongSide: 480)
+                    ReferenceFilterRenderer.shared.render(small, filter: filter, outline: outline, maxLongSide: 480)
                 }.value ?? small
             } else {
                 thumbnail = small

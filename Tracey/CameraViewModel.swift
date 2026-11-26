@@ -90,12 +90,22 @@ class CameraViewModel: ObservableObject {
     @Published private(set) var filterThumbnails: [ReferenceFilter: UIImage] = [:]
     /// Grid over the reference: 0 = off, 3 or 4 divisions per side
     @Published var gridDivisions: Int = 0
+    /// Detail and line color of the Outline filter (per reference; saved with it)
+    @Published private(set) var outlineStyle = OutlineStyle(detail: 0.5, color: .preferred)
 
     /// Fires when a filter couldn't be applied (it falls back to Original)
     let filterFailed = PassthroughSubject<Void, Never>()
 
-    private var filteredCache: [ReferenceFilter: UIImage] = [:]
+    /// Rendered filters for the current image. The outline style is part of the key only for
+    /// the Outline filter.
+    private struct FilterKey: Hashable {
+        let filter: ReferenceFilter
+        let outline: OutlineStyle?
+    }
+    private var filteredCache: [FilterKey: UIImage] = [:]
     private var filterGeneration = 0
+    /// Slider drags and color-picker drags re-render after a short pause, not on every change
+    private var outlineRenderWork: DispatchWorkItem?
     private let filterQueue = DispatchQueue(label: "tracey.filters", qos: .userInitiated)
     private let thumbnailQueue = DispatchQueue(label: "tracey.filters.thumbnails", qos: .utility)
 
@@ -110,6 +120,37 @@ class CameraViewModel: ObservableObject {
     /// Sets the filter for an image that is about to be shown (call before setting overlayImage).
     private func setFilterForNewImage(_ filter: ReferenceFilter) {
         referenceFilter = filter
+    }
+
+    private func filterKey(_ filter: ReferenceFilter) -> FilterKey {
+        FilterKey(filter: filter, outline: filter == .outline ? outlineStyle : nil)
+    }
+
+    /// Outline detail, 0 (main shapes) … 1 (fine lines). Re-renders shortly after the last change.
+    func setOutlineDetail(_ detail: Double) {
+        let clamped = detail.isFinite ? min(max(detail, 0), 1) : 0.5
+        guard clamped != outlineStyle.detail else { return }
+        outlineStyle.detail = clamped
+        scheduleOutlineRender()
+    }
+
+    /// Outline line color. It also becomes the color new references start with.
+    func setOutlineColor(_ color: OutlineColor) {
+        OutlineColor.preferred = color
+        guard color != outlineStyle.color else { return }
+        outlineStyle.color = color
+        scheduleOutlineRender()
+    }
+
+    private func scheduleOutlineRender() {
+        outlineRenderWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            if self.referenceFilter == .outline { self.updateDisplayImage(keepPrevious: true) }
+            self.generateOutlineThumbnail()
+        }
+        outlineRenderWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: work)
     }
 
     private func overlayImageChanged() {
@@ -131,7 +172,9 @@ class CameraViewModel: ObservableObject {
             displayImage = source
             return
         }
-        if let cached = filteredCache[filter] {
+        let key = filterKey(filter)
+        let outline = outlineStyle
+        if let cached = filteredCache[key] {
             displayImage = cached
             return
         }
@@ -139,11 +182,11 @@ class CameraViewModel: ObservableObject {
         let generation = filterGeneration
         filterQueue.async { [weak self] in
             // Long side ≤ 2048 px: plenty for an overlay, and quick to filter
-            let result = ReferenceFilterRenderer.shared.render(source, filter: filter, maxLongSide: 2048)
+            let result = ReferenceFilterRenderer.shared.render(source, filter: filter, outline: outline, maxLongSide: 2048)
             DispatchQueue.main.async {
                 guard let self, self.overlayImage === source else { return }
                 if let result {
-                    self.filteredCache[filter] = result
+                    self.filteredCache[key] = result
                     if generation == self.filterGeneration { self.displayImage = result }
                 } else if generation == self.filterGeneration {
                     self.referenceFilter = .original
@@ -156,6 +199,7 @@ class CameraViewModel: ObservableObject {
 
     private func generateFilterThumbnails() {
         guard let source = overlayImage else { return }
+        let outline = outlineStyle
         thumbnailQueue.async { [weak self] in
             let renderer = ReferenceFilterRenderer.shared
             // 120 px previews, filtered from one small copy
@@ -166,9 +210,7 @@ class CameraViewModel: ObservableObject {
                 case .original:
                     thumbnail = small
                 case .outline:
-                    // Edges found at 120 px turn into a solid blob: trace at 480 px, then shrink
-                    thumbnail = renderer.render(source, filter: .outline, maxLongSide: 480)
-                        .flatMap { renderer.render($0, filter: .original, maxLongSide: 120) }
+                    thumbnail = Self.outlineThumbnail(of: source, style: outline)
                 default:
                     thumbnail = renderer.render(small, filter: filter, maxLongSide: 120)
                 }
@@ -176,6 +218,26 @@ class CameraViewModel: ObservableObject {
                     guard let self, self.overlayImage === source else { return }
                     self.filterThumbnails[filter] = thumbnail ?? small
                 }
+            }
+        }
+    }
+
+    /// Edges found at 120 px turn into a solid blob: trace at 480 px, then shrink.
+    private static func outlineThumbnail(of source: UIImage, style: OutlineStyle) -> UIImage? {
+        let renderer = ReferenceFilterRenderer.shared
+        return renderer.render(source, filter: .outline, outline: style, maxLongSide: 480)
+            .flatMap { renderer.render($0, filter: .original, maxLongSide: 120) }
+    }
+
+    /// Redraws only the Outline tile (after a detail or color change)
+    private func generateOutlineThumbnail() {
+        guard let source = overlayImage else { return }
+        let outline = outlineStyle
+        thumbnailQueue.async { [weak self] in
+            let thumbnail = Self.outlineThumbnail(of: source, style: outline)
+            DispatchQueue.main.async {
+                guard let self, self.overlayImage === source, self.outlineStyle == outline, let thumbnail else { return }
+                self.filterThumbnails[.outline] = thumbnail
             }
         }
     }
@@ -202,6 +264,7 @@ class CameraViewModel: ObservableObject {
         let cameraZoom: CGFloat
         let filter: ReferenceFilter
         let gridDivisions: Int
+        let outlineStyle: OutlineStyle
     }
 
     /// Removes the reference and returns what is needed to undo it.
@@ -219,7 +282,8 @@ class CameraViewModel: ObservableObject {
                 loadedImageName: imageStorage.loadedImageName,
                 cameraZoom: cameraUIViewRef?.getCurrentZoomFactor() ?? 1.0,
                 filter: referenceFilter,
-                gridDivisions: gridDivisions
+                gridDivisions: gridDivisions,
+                outlineStyle: outlineStyle
             )
         }
         withAnimation(.easeInOut(duration: 0.2)) {
@@ -254,6 +318,7 @@ class CameraViewModel: ObservableObject {
             isFlippedVertically = removed.isFlippedVertically
             setFilterForNewImage(removed.filter)
             gridDivisions = removed.gridDivisions
+            outlineStyle = removed.outlineStyle
         }
         withAnimation(.easeInOut(duration: 0.2)) {
             overlayImage = removed.image
@@ -266,6 +331,8 @@ class CameraViewModel: ObservableObject {
         if let image = imageStorage.loadImage(named: configuration.imageName) {
             // Older saves have no filter: they load as Original
             setFilterForNewImage(configuration.filter.flatMap(ReferenceFilter.init(rawValue:)) ?? .original)
+            // The entry's own outline; loading doesn't change the preferred color
+            outlineStyle = configuration.outlineStyle
             let savedGrid = configuration.gridDivisions ?? 0
             gridDivisions = [3, 4].contains(savedGrid) ? savedGrid : 0
             overlayImage = image
@@ -389,6 +456,7 @@ class CameraViewModel: ObservableObject {
                     imageOffset = .zero
                     setFilterForNewImage(.original) // a fresh image starts unfiltered
                     gridDivisions = 0
+                    outlineStyle = OutlineStyle(detail: 0.5, color: .preferred)
                     overlayImage = newValue
                 }
                 imageStorage.loadedImageName = nil
@@ -428,6 +496,7 @@ class CameraViewModel: ObservableObject {
             captureMode: captureMode,
             filter: referenceFilter.rawValue,
             gridDivisions: gridDivisions,
+            outlineStyle: outlineStyle,
             overwriteImageName: prevLoadedName
         )
 

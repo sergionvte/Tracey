@@ -143,12 +143,34 @@
         }
       }
     },
+    "Black" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Negro"
+          }
+        }
+      }
+    },
     "Black and white" : {
       "localizations" : {
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Blanco y negro"
+          }
+        }
+      }
+    },
+    "Blue" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Azul"
           }
         }
       }
@@ -273,6 +295,17 @@
         }
       }
     },
+    "Custom color" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color personalizado"
+          }
+        }
+      }
+    },
     "Delete" : {
       "localizations" : {
         "es" : {
@@ -289,6 +322,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "¿Eliminar esta referencia?"
+          }
+        }
+      }
+    },
+    "Detail" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detalle"
           }
         }
       }
@@ -413,6 +457,17 @@
         }
       }
     },
+    "Green" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verde"
+          }
+        }
+      }
+    },
     "Grid" : {
       "localizations" : {
         "es" : {
@@ -513,12 +568,34 @@
         }
       }
     },
+    "Less detail" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menos detalle"
+          }
+        }
+      }
+    },
     "Library" : {
       "localizations" : {
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Biblioteca"
+          }
+        }
+      }
+    },
+    "Line Color" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color de línea"
           }
         }
       }
@@ -599,6 +676,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Más"
+          }
+        }
+      }
+    },
+    "More detail" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Más detalle"
           }
         }
       }
@@ -829,6 +917,17 @@
         }
       }
     },
+    "Purple" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Morado"
+          }
+        }
+      }
+    },
     "Ready to trace" : {
       "localizations" : {
         "es" : {
@@ -855,6 +954,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Graba un time-lapse de tu dibujo y prueba el filtro Contorno para ver mejor las líneas."
+          }
+        }
+      }
+    },
+    "Red" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rojo"
           }
         }
       }
@@ -1375,6 +1485,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Modo video · vista más fluida"
+          }
+        }
+      }
+    },
+    "White" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blanco"
           }
         }
       }

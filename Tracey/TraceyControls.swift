@@ -383,6 +383,16 @@ struct AdjustPanel: View {
                 }
             )
 
+            // Outline detail and line color, only while Outline is the filter
+            if viewModel.referenceFilter == .outline {
+                OutlineControls(
+                    style: viewModel.outlineStyle,
+                    onDetail: { viewModel.setOutlineDetail($0) },
+                    onColor: { viewModel.setOutlineColor($0) }
+                )
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
             AdjustRow(
                 icon: "circle.lefthalf.filled",
                 title: String(localized: "Opacity"),
@@ -430,6 +440,7 @@ struct AdjustPanel: View {
             // Attached to the image; available while locked
             GridRow(divisions: $viewModel.gridDivisions)
         }
+        .animation(Theme.spring, value: viewModel.referenceFilter)
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
     }
@@ -564,6 +575,94 @@ private struct GridRow: View {
 }
 
 /// Two independent toggles: mirror left↔right and top↔bottom
+/// Outline filter: how much detail it keeps and the line color. Like the filters, it never
+/// moves the image, so it stays available while locked.
+private struct OutlineControls: View {
+    let style: OutlineStyle
+    let onDetail: (Double) -> Void
+    let onColor: (OutlineColor) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            AdjustRow(
+                icon: "scribble.variable",
+                title: String(localized: "Detail"),
+                value: "\(Int((style.detail * 100).rounded()))%",
+                onReset: { onDetail(0.5) }
+            ) {
+                Slider(value: Binding(get: { style.detail }, set: onDetail), in: 0...1) {
+                    Text("Detail")
+                } minimumValueLabel: {
+                    Image(systemName: "minus")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.6))
+                        .accessibilityLabel("Less detail")
+                } maximumValueLabel: {
+                    Image(systemName: "plus")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.6))
+                        .accessibilityLabel("More detail")
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 10) {
+                    Image(systemName: "paintpalette")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.7))
+                        .frame(width: 20)
+                    Text("Line Color")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.white)
+                }
+                .accessibilityHidden(true)
+
+                HStack(spacing: 4) {
+                    ForEach(OutlineColor.presets, id: \.self) { color in
+                        swatch(color)
+                    }
+                    ColorPicker(selection: Binding(
+                        get: { Color(uiColor: style.color.uiColor) },
+                        set: { onColor(OutlineColor(UIColor($0))) }
+                    ), supportsOpacity: false) {
+                        Text("Custom color")
+                    }
+                    .labelsHidden()
+                    .frame(width: 44, height: 44)
+                    .overlay {
+                        // Marks a custom color as the current one
+                        Circle()
+                            .strokeBorder(Theme.accent, lineWidth: 2.5)
+                            .frame(width: 36, height: 36)
+                            .opacity(style.color.presetName == nil ? 1 : 0)
+                            .allowsHitTesting(false)
+                    }
+                }
+            }
+        }
+    }
+
+    private func swatch(_ color: OutlineColor) -> some View {
+        let isSelected = color == style.color
+        return Button {
+            Haptics.light()
+            onColor(color)
+        } label: {
+            Circle()
+                .fill(Color(uiColor: color.uiColor))
+                .overlay(Circle().strokeBorder(.white.opacity(0.35), lineWidth: 0.5))
+                .frame(width: 26, height: 26)
+                .padding(4)
+                .overlay(Circle().strokeBorder(Theme.accent, lineWidth: 2.5).opacity(isSelected ? 1 : 0))
+                .frame(maxWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(color.presetName ?? "")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
 private struct MirrorRow: View {
     let horizontal: Bool
     let vertical: Bool
