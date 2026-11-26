@@ -45,22 +45,22 @@ final class ReferenceFilterRenderer {
 
     private let context = CIContext(options: [.cacheIntermediates: false])
 
-    /// Outline line color: blue #1E6BFF, so reference lines can't be mistaken for graphite.
-    /// Core Image works in linear light, so the sRGB components are linearized; the plain
-    /// (0.118, 0.420, 1.0) bias would come out as a much lighter blue.
-    private let outlineColor = (red: ReferenceFilterRenderer.linear(0x1E),
-                                green: ReferenceFilterRenderer.linear(0x6B),
-                                blue: ReferenceFilterRenderer.linear(0xFF))
-
-    private static func linear(_ component: Int) -> CGFloat {
-        let c = CGFloat(component) / 255
+    /// sRGB component (0–1) to linear light
+    private static func linear(_ component: Double) -> CGFloat {
+        let c = CGFloat(min(max(component, 0), 1))
         return c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
     }
 
-    /// `image` with `filter` applied, downscaled so its long side is at most `maxLongSide`
-    /// pixels. The result keeps the original's point size (same aspect ratio), so fitting,
-    /// snapping and hit testing don't change. Returns nil if Core Image fails.
+    /// `image` with `filter` applied (the Outline filter drawn with the default style).
     func render(_ image: UIImage, filter: ReferenceFilter, maxLongSide: CGFloat) -> UIImage? {
+        render(image, filter: filter, outline: OutlineStyle(), maxLongSide: maxLongSide)
+    }
+
+    /// `image` with `filter` applied, downscaled so its long side is at most `maxLongSide`
+    /// pixels. `outline` only matters for the Outline filter. The result keeps the original's
+    /// point size (same aspect ratio), so fitting, snapping and hit testing don't change.
+    /// Returns nil if Core Image fails.
+    func render(_ image: UIImage, filter: ReferenceFilter, outline: OutlineStyle, maxLongSide: CGFloat) -> UIImage? {
         guard var input = Self.orientedCIImage(from: image) else { return nil }
 
         let extent = input.extent
@@ -89,20 +89,22 @@ final class ReferenceFilterRenderer {
         case .contrast:
             output = highContrastGray(input, extent: workExtent)
         case .outline:
-            // Gray, softened a little and with a higher threshold, so busy photos give the
-            // main shapes instead of texture noise. Black lines on transparent, recolored blue
-            // (alpha kept from the lines).
+            // Gray, softened and thresholded by the detail setting (less detail = more blur and
+            // a higher threshold, so busy photos give the main shapes instead of texture noise).
+            // Black lines on transparent, recolored (alpha kept from the lines). Core Image works
+            // in linear light, so the sRGB color is linearized or it would come out lighter.
             let lines = input
                 .applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: 0.0])
-                .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: 1.5])
-                .applyingFilter("CILineOverlay", parameters: ["inputThreshold": 0.2])
+                .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: outline.blurRadius])
+                .applyingFilter("CILineOverlay", parameters: ["inputThreshold": outline.lineThreshold])
                 .applyingFilter("CIColorMatrix", parameters: [
                     "inputRVector": CIVector(x: 0, y: 0, z: 0, w: 0),
                     "inputGVector": CIVector(x: 0, y: 0, z: 0, w: 0),
                     "inputBVector": CIVector(x: 0, y: 0, z: 0, w: 0),
                     "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
-                    "inputBiasVector": CIVector(x: outlineColor.red, y: outlineColor.green,
-                                                z: outlineColor.blue, w: 0)
+                    "inputBiasVector": CIVector(x: Self.linear(outline.color.red),
+                                                y: Self.linear(outline.color.green),
+                                                z: Self.linear(outline.color.blue), w: 0)
                 ])
             output = lines
         }

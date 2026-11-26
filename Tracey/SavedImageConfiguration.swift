@@ -28,8 +28,15 @@ struct SavedImageConfiguration: Codable, Identifiable {
     /// Vertical mirror (nil in older saves = not mirrored)
     let verticalMirror: Bool?
     var isFlippedVertically: Bool { verticalMirror ?? false }
+    /// Outline filter detail (nil in older saves = the middle)
+    let outlineDetail: Double?
+    /// Outline line color (nil in older saves = blue)
+    let outlineColor: OutlineColor?
+    var outlineStyle: OutlineStyle {
+        OutlineStyle(detail: outlineDetail ?? 0.5, color: outlineColor ?? .blue)
+    }
 
-    init(imageName: String, opacity: Double, scale: Double, rotation: Double, offsetX: Double = 0, offsetY: Double = 0, isFlipped: Bool = false, isFlippedVertically: Bool = false, cameraZoom: CGFloat = 1.0, captureMode: CameraCaptureMode? = nil, filter: String? = nil, gridDivisions: Int? = nil) {
+    init(imageName: String, opacity: Double, scale: Double, rotation: Double, offsetX: Double = 0, offsetY: Double = 0, isFlipped: Bool = false, isFlippedVertically: Bool = false, cameraZoom: CGFloat = 1.0, captureMode: CameraCaptureMode? = nil, filter: String? = nil, gridDivisions: Int? = nil, outlineStyle: OutlineStyle = OutlineStyle()) {
         self.id = UUID()
         self.imageName = imageName
         self.opacity = opacity
@@ -44,10 +51,12 @@ struct SavedImageConfiguration: Codable, Identifiable {
         self.filter = filter
         self.gridDivisions = gridDivisions
         self.verticalMirror = isFlippedVertically
+        self.outlineDetail = outlineStyle.detail
+        self.outlineColor = outlineStyle.color
     }
 
     // Nuevo init para sobrescribir manteniendo id y fecha
-    init(id: UUID, imageName: String, opacity: Double, scale: Double, rotation: Double, offsetX: Double, offsetY: Double, isFlipped: Bool, isFlippedVertically: Bool, dateCreated: Date, cameraZoom: CGFloat, captureMode: CameraCaptureMode?, filter: String?, gridDivisions: Int?) {
+    init(id: UUID, imageName: String, opacity: Double, scale: Double, rotation: Double, offsetX: Double, offsetY: Double, isFlipped: Bool, isFlippedVertically: Bool, dateCreated: Date, cameraZoom: CGFloat, captureMode: CameraCaptureMode?, filter: String?, gridDivisions: Int?, outlineStyle: OutlineStyle) {
         self.id = id
         self.imageName = imageName
         self.opacity = opacity
@@ -62,5 +71,7 @@ struct SavedImageConfiguration: Codable, Identifiable {
         self.filter = filter
         self.gridDivisions = gridDivisions
         self.verticalMirror = isFlippedVertically
+        self.outlineDetail = outlineStyle.detail
+        self.outlineColor = outlineStyle.color
     }
 }
