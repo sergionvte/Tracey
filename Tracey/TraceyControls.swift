@@ -429,27 +429,32 @@ struct AdjustPanel: View {
                 .accessibilityHidden(!isLocked)
 
             // Filters never change size or position, so they stay available while locked
-            FilterPicker(
-                selected: viewModel.referenceFilter,
-                thumbnails: viewModel.filterThumbnails,
-                onSelect: { filter in
-                    Haptics.light()
-                    viewModel.selectFilter(filter)
-                }
-            )
+            // Outline detail and line color open under the filters like a drawer, only while
+            // Outline is the filter. Always in the layout (height 0 and clipped when closed), so
+            // the drawer, the rows below it and the panel's edge move as one animation.
+            let showsOutline = viewModel.referenceFilter == .outline
+            VStack(spacing: 0) {
+                FilterPicker(
+                    selected: viewModel.referenceFilter,
+                    thumbnails: viewModel.filterThumbnails,
+                    onSelect: { filter in
+                        Haptics.light()
+                        // One animated change: the panel resizes in step with its rows
+                        withAnimation(Theme.spring) { viewModel.selectFilter(filter) }
+                    }
+                )
 
-            // Outline detail and line color, only while Outline is the filter
-            if viewModel.referenceFilter == .outline {
                 OutlineControls(
                     style: viewModel.outlineStyle,
                     onDetail: { viewModel.setOutlineDetail($0) },
                     onColor: { viewModel.setOutlineColor($0) }
                 )
-                // Fade only: sliding them from the top drew them over the filter tiles
-                .transition(.asymmetric(
-                    insertion: .opacity.animation(.easeOut(duration: 0.2).delay(0.08)),
-                    removal: .opacity.animation(.easeOut(duration: 0.1))
-                ))
+                .padding(.top, 8)
+                .frame(height: showsOutline ? nil : 0, alignment: .top)
+                .clipped()
+                .opacity(showsOutline ? 1 : 0)
+                .allowsHitTesting(showsOutline)
+                .accessibilityHidden(!showsOutline)
             }
 
             AdjustRow(
@@ -504,7 +509,6 @@ struct AdjustPanel: View {
             // Attached to the image; available while locked
             GridRow(divisions: $viewModel.gridDivisions)
         }
-        .animation(Theme.spring, value: viewModel.referenceFilter)
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
         .accessibilityElement(children: .contain)
