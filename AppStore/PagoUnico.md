@@ -74,3 +74,10 @@ App Store Connect te pide dos URL públicas. Las páginas ya están en el repo: 
 - [ ] Privacidad de la app: "Datos no recopilados"
 - [ ] Clasificación por edad: 4+
 - [ ] Build subido con Xcode (Apple ID agregado en Xcode → Settings → Accounts)
+
+## Versionado
+
+- **Versión** (la que ve la gente): **1.0**. Solo cambia a mano cuando sale una versión nueva a la App Store (1.1, 1.2…).
+- **Build**: el número de commits (`git rev-list --count HEAD`), así siempre sube y App Store Connect no rechaza un build repetido.
+- **.ipa de prueba** (sin firmar, para LiveContainer): `Tools/make-ipa.sh` → `build/Tracey-1.0-unsigned.ipa`, con el build ya puesto.
+- **Subir desde Xcode**: antes de *Product → Archive*, poner ese número en Tracey → General → Build.
