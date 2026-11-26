@@ -9,6 +9,15 @@
 import SwiftUI
 import UIKit
 
+/// What happens by itself when a new image is picked from Photos (both off by default)
+enum OpenImageOptions {
+    static let autoCropKey = "autoCropOnOpen"
+    static let autoFitKey = "autoFitSheetOnOpen"
+
+    static var autoCrop: Bool { UserDefaults.standard.bool(forKey: autoCropKey) }
+    static var autoFit: Bool { UserDefaults.standard.bool(forKey: autoFitKey) }
+}
+
 enum AppIconChoice: String, CaseIterable, Identifiable {
     case amber, indigo, mint, rose, graphite, notebook
 
@@ -50,6 +59,8 @@ struct SettingsView: View {
     @State private var selected = AppIconChoice(alternateName: UIApplication.shared.alternateIconName)
     @State private var iconError = false
     @AppStorage(TimelapseSpeed.storageKey) private var timelapseSpeed = TimelapseSpeed.default
+    @AppStorage(OpenImageOptions.autoCropKey) private var autoCrop = false
+    @AppStorage(OpenImageOptions.autoFitKey) private var autoFit = false
 
     private var version: String {
         let info = Bundle.main.infoDictionary
@@ -74,6 +85,19 @@ struct SettingsView: View {
                     Text("Time-Lapse Speed")
                 } footer: {
                     Text("An hour of drawing becomes a \(timelapseSpeed.clipLengthPerHour) clip. Applies to your next recording.")
+                }
+
+                Section {
+                    Toggle(isOn: $autoCrop) {
+                        Label("Crop on Open", systemImage: "crop")
+                    }
+                    Toggle(isOn: $autoFit) {
+                        Label("Fit to Sheet on Open", systemImage: "doc.viewfinder")
+                    }
+                } header: {
+                    Text("When Opening an Image")
+                } footer: {
+                    Text("Only for new images from Photos. You can always use the buttons.")
                 }
 
                 Section {

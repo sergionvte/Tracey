@@ -317,6 +317,17 @@
         }
       }
     },
+    "Crop on Open" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recortar al abrir"
+          }
+        }
+      }
+    },
     "Cropped" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -448,6 +459,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Colocar en la hoja"
+          }
+        }
+      }
+    },
+    "Fit to Sheet on Open" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Colocar en la hoja al abrir"
           }
         }
       }
@@ -856,6 +878,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No"
+          }
+        }
+      }
+    },
+    "Only for new images from Photos. You can always use the buttons." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solo con imágenes nuevas de Fotos. Siempre puedes hacerlo con los botones."
           }
         }
       }
@@ -1617,6 +1650,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Modo video · vista más fluida"
+          }
+        }
+      }
+    },
+    "When Opening an Image" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Al abrir una imagen"
           }
         }
       }

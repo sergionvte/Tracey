@@ -14,6 +14,8 @@ struct ContentView: View {
     @State private var cropSession: CropSession?
     /// Looking for the sheet in the camera
     @State private var isFittingSheet = false
+    /// A new image came from Photos: run the automatic crop / fit once the picker is gone
+    @State private var pendingOpenActions = false
     /// "How to Use Tracey" from Settings: the tour opens once the sheet is gone
     @State private var tourAfterSettings = false
     @State private var showingControls = true
@@ -385,8 +387,12 @@ struct ContentView: View {
             Text("Free up at least 1 GB to record a time-lapse.")
         }
         .fullScreenCover(item: $cropSession, content: cropScreen)
-        .sheet(isPresented: $showingImagePicker) {
-            ImagePicker(selectedImage: $viewModel.selectedImageFromGallery) // Use the property that clears loadedImageName
+        .sheet(isPresented: $showingImagePicker, onDismiss: runOpenActionsIfNeeded) {
+            // The image can arrive before or after the picker finishes closing
+            ImagePicker(selectedImage: $viewModel.selectedImageFromGallery, onImagePicked: { _ in
+                pendingOpenActions = true
+                runOpenActionsIfNeeded()
+            })
         }
         .sheet(isPresented: $showingSettings, onDismiss: {
             if tourAfterSettings {
@@ -441,6 +447,7 @@ struct ContentView: View {
     private func finishTour() {
         UserDefaults.standard.set(true, forKey: Self.hasSeenTourKey)
         withAnimation(Theme.spring) { isTourPresented = false }
+        runOpenActionsIfNeeded()
     }
 
     private func toggleControls() {
@@ -601,6 +608,19 @@ struct ContentView: View {
     // MARK: - Fit to sheet
 
     private func fitToSheetFromButton() { fitToSheet(automatic: false) }
+
+    /// "Crop on Open" and "Fit to Sheet on Open" (Settings), for a new image from Photos: crop
+    /// first, then fit once the crop screen closes. Waits for the picker and the tour to close.
+    private func runOpenActionsIfNeeded() {
+        guard pendingOpenActions, !showingImagePicker, !isTourPresented, viewModel.overlayImage != nil else { return }
+        pendingOpenActions = false
+        let fit = OpenImageOptions.autoFit
+        if OpenImageOptions.autoCrop {
+            openCrop(then: fit ? { fitToSheet(automatic: true) } : nil)
+        } else if fit {
+            fitToSheet(automatic: true)
+        }
+    }
 
     /// Finds the paper and puts the image on it, with Undo. `automatic` (right after opening an
     /// image) waits longer for the camera to start and says nothing while locked.
