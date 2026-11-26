@@ -272,12 +272,14 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
                 connection.videoRotationAngle = rotationAngle
             }
             self.videoDataOutput.setSampleBufferDelegate(recorder, queue: recorder.queue)
+            self.recordingTarget = recorder
         }
     }
 
     /// Stops sending frames; `completion` runs on the main queue once no more will arrive.
     func stopFrameDelivery(completion: @escaping () -> Void) {
         sessionQueue.async { [weak self] in
+            self?.recordingTarget = nil
             self?.videoDataOutput.setSampleBufferDelegate(nil, queue: nil)
             #if DEBUG
             self?.syntheticFrames?.stop()
@@ -285,6 +287,116 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
             #endif
             DispatchQueue.main.async(execute: completion)
         }
+    }
+
+    // MARK: - Fit to sheet
+
+    /// Session-queue state: the recorder receiving frames, if a time-lapse is recording
+    private weak var recordingTarget: TimelapseRecorder?
+    /// Session-queue state: the delegate taking one frame for the sheet detector
+    private var frameGrabber: OneShotFrameGrabber?
+
+    /// One camera frame and the rotation it was delivered with (main queue), or nil after
+    /// `timeout`. While a time-lapse records, the frame comes through the recorder so the
+    /// recording isn't disturbed.
+    func captureFrame(timeout: TimeInterval, completion: @escaping (CVPixelBuffer?, CGFloat) -> Void) {
+        var finished = false
+        let finish: (CVPixelBuffer?, CGFloat) -> Void = { buffer, angle in
+            DispatchQueue.main.async {
+                guard !finished else { return }
+                finished = true
+                completion(buffer, angle)
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
+            guard !finished else { return }
+            finish(nil, 0)
+            self?.sessionQueue.async { self?.removeFrameGrabber() }
+        }
+        sessionQueue.async { [weak self] in
+            guard let self else { return }
+            guard self.captureDevice != nil else {
+                #if DEBUG && targetEnvironment(simulator)
+                // Simulator: no camera, a synthetic sheet so the whole flow can be tried
+                finish(SyntheticFrameSource.sheetFrame(size: CGSize(width: 1080, height: 1920)), 90)
+                #else
+                finish(nil, 0)
+                #endif
+                return
+            }
+            let angle = self.videoDataOutput.connection(with: .video)?.videoRotationAngle ?? 90
+            if let recorder = self.recordingTarget {
+                recorder.requestNextFrame { buffer in finish(buffer, angle) }
+                return
+            }
+            guard self.frameGrabber == nil else { return } // one already waiting; the timeout answers
+            let grabber = OneShotFrameGrabber { [weak self] buffer in
+                finish(buffer, angle)
+                self?.sessionQueue.async { self?.removeFrameGrabber() }
+            }
+            self.frameGrabber = grabber
+            self.videoDataOutput.setSampleBufferDelegate(grabber, queue: grabber.queue)
+        }
+    }
+
+    /// Session queue. Never takes the frames away from a recorder that started meanwhile.
+    private func removeFrameGrabber() {
+        guard let grabber = frameGrabber else { return }
+        frameGrabber = nil
+        if videoDataOutput.sampleBufferDelegate === grabber {
+            videoDataOutput.setSampleBufferDelegate(nil, queue: nil)
+        }
+    }
+
+    /// A point normalized in a camera buffer (origin top-left) in this view's coordinates.
+    func layerPoint(fromBufferNormalized point: CGPoint, rotationAngle: CGFloat, bufferSize: CGSize) -> CGPoint {
+        #if DEBUG && targetEnvironment(simulator)
+        if captureDevice == nil {
+            // The synthetic frame is upright: aspect-fill it into the view
+            let scale = max(bounds.width / max(bufferSize.width, 1), bounds.height / max(bufferSize.height, 1))
+            let size = CGSize(width: bufferSize.width * scale, height: bufferSize.height * scale)
+            return CGPoint(x: point.x * size.width - (size.width - bounds.width) / 2,
+                           y: point.y * size.height - (size.height - bounds.height) / 2)
+        }
+        #endif
+        let device = SheetGeometry.devicePoint(fromBuffer: point, rotationAngle: rotationAngle)
+        return previewLayer.layerPointConverted(fromCaptureDevicePoint: device)
+    }
+
+    /// Finds the sheet and returns where the overlay should go to sit on it, or nil when no
+    /// sheet shows up before `timeout` (it keeps trying until then: right after opening an image
+    /// the camera may still be starting). Main queue.
+    func detectSheetPlacement(imageSize: CGSize, currentRotation: Double, timeout: TimeInterval,
+                              completion: @escaping ((offset: CGSize, scale: CGFloat, rotation: Double)?) -> Void) {
+        let deadline = Date().addingTimeInterval(timeout)
+        func attempt() {
+            let remaining = deadline.timeIntervalSinceNow
+            guard remaining > 0 else { completion(nil); return }
+            captureFrame(timeout: remaining) { [weak self] buffer, angle in
+                guard let self, let buffer else { completion(nil); return }
+                let bufferSize = CGSize(width: CVPixelBufferGetWidth(buffer), height: CVPixelBufferGetHeight(buffer))
+                SheetDetector.detect(in: buffer) { [weak self] quad in
+                    guard let self else { return }
+                    if let quad {
+                        let onScreen = quad.map {
+                            self.layerPoint(fromBufferNormalized: $0, rotationAngle: angle, bufferSize: bufferSize)
+                        }
+                        if SheetGeometry.isPlausible(onScreen, in: self.bounds.size) {
+                            completion(SheetGeometry.placement(sheet: onScreen, imageSize: imageSize,
+                                                               layoutRect: self.overlayLayoutRect,
+                                                               currentRotation: currentRotation))
+                            return
+                        }
+                    }
+                    if deadline.timeIntervalSinceNow > 0.3 {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { attempt() }
+                    } else {
+                        completion(nil)
+                    }
+                }
+            }
+        }
+        attempt()
     }
 
     // MARK: - Camera on/off
@@ -1054,5 +1166,22 @@ class CameraUIView: UIView, UIGestureRecognizerDelegate {
 
     func getCurrentZoomFactor() -> CGFloat {
         captureDevice?.videoZoomFactor ?? 1.0
+    }
+}
+
+/// Takes one frame from the video output, then ignores the rest until it is removed.
+final class OneShotFrameGrabber: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
+    let queue = DispatchQueue(label: "tracey.sheet-frame", qos: .userInitiated)
+    private var handler: ((CVPixelBuffer) -> Void)?
+
+    init(handler: @escaping (CVPixelBuffer) -> Void) {
+        self.handler = handler
+    }
+
+    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer,
+                       from connection: AVCaptureConnection) {
+        guard let handler, let buffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        self.handler = nil
+        handler(buffer)
     }
 }

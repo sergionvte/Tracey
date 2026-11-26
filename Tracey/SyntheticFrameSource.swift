@@ -86,5 +86,56 @@ final class SyntheticFrameSource {
         UIGraphicsPopContext()
         return buffer
     }
+
+    // MARK: - Still frames (fit to sheet in the Simulator, and tests)
+
+    /// A BGRA buffer of `size` drawn by `draw` in UIKit coordinates (origin top-left).
+    static func makeFrame(size: CGSize, draw: (CGContext, CGSize) -> Void) -> CVPixelBuffer? {
+        let width = Int(size.width), height = Int(size.height)
+        var buffer: CVPixelBuffer?
+        let attributes: [String: Any] = [
+            kCVPixelBufferCGImageCompatibilityKey as String: true,
+            kCVPixelBufferCGBitmapContextCompatibilityKey as String: true,
+            kCVPixelBufferIOSurfacePropertiesKey as String: [String: Any]()
+        ]
+        guard CVPixelBufferCreate(nil, width, height, kCVPixelFormatType_32BGRA,
+                                  attributes as CFDictionary, &buffer) == kCVReturnSuccess,
+              let buffer else { return nil }
+        CVPixelBufferLockBaseAddress(buffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
+        guard let context = CGContext(
+            data: CVPixelBufferGetBaseAddress(buffer), width: width, height: height,
+            bitsPerComponent: 8, bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        ) else { return nil }
+        context.translateBy(x: 0, y: size.height)
+        context.scaleBy(x: 1, y: -1)
+        draw(context, size)
+        return buffer
+    }
+
+    /// One flat gray frame (nothing to detect)
+    static func solidFrame(size: CGSize, gray: CGFloat) -> CVPixelBuffer? {
+        makeFrame(size: size) { context, size in
+            context.setFillColor(UIColor(white: gray, alpha: 1).cgColor)
+            context.fill(CGRect(origin: .zero, size: size))
+        }
+    }
+
+    /// A white sheet (60% × 55% of the frame, centered, turned 6°) on a dark desk
+    static func sheetFrame(size: CGSize) -> CVPixelBuffer? {
+        makeFrame(size: size) { context, size in
+            context.setFillColor(UIColor(white: 0.18, alpha: 1).cgColor)
+            context.fill(CGRect(origin: .zero, size: size))
+            context.saveGState()
+            context.translateBy(x: size.width / 2, y: size.height / 2)
+            context.rotate(by: 6 * .pi / 180)
+            let sheet = CGSize(width: size.width * 0.6, height: size.height * 0.55)
+            context.setFillColor(UIColor(white: 0.96, alpha: 1).cgColor)
+            context.fill(CGRect(x: -sheet.width / 2, y: -sheet.height / 2, width: sheet.width, height: sheet.height))
+            context.restoreGState()
+        }
+    }
 }
 #endif

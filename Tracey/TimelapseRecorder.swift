@@ -68,6 +68,8 @@ final class TimelapseRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDel
     private let lock = NSLock()
     private var _framesWritten = 0
     private var _isPaused = false
+    /// Waiting for the next camera frame (fit to sheet while recording)
+    private var frameRequests: [(CVPixelBuffer) -> Void] = []
 
     // Queue-only state
     private var writer: AVAssetWriter?
@@ -126,6 +128,12 @@ final class TimelapseRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDel
 
     // MARK: - Frames
 
+    /// Hands the next camera frame to `handler` (on `queue`), without affecting the recording.
+    /// Any thread.
+    func requestNextFrame(_ handler: @escaping (CVPixelBuffer) -> Void) {
+        lock.lock(); frameRequests.append(handler); lock.unlock()
+    }
+
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer,
                        from connection: AVCaptureConnection) {
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
@@ -136,6 +144,12 @@ final class TimelapseRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDel
     /// the last kept one and recording isn't paused; each kept frame is the next 1/30 s of the clip, so pauses
     /// leave no gap.
     func consume(_ pixelBuffer: CVPixelBuffer, at time: CMTime) {
+        lock.lock()
+        let requests = frameRequests
+        frameRequests = []
+        lock.unlock()
+        requests.forEach { $0(pixelBuffer) }
+
         guard !isStopped, !didFail, !isPaused else { return }
         if let last = lastKeptTime, CMTimeGetSeconds(CMTimeSubtract(time, last)) < captureInterval {
             return
