@@ -193,4 +193,4 @@ Plantilla para armarlas: https://claude.ai/artifact/XA8GEjWKDhvPvbC4f3yFv4 (priv
 5. La pantalla de recorte (Carta) o la cuadrícula 3×3. Texto: **"Recorta y cuadra"**
 6. Solo texto. **"Sin anuncios. Sin cuenta. Sin internet."** (Nada de precios en las capturas, por la regla 2.3.7.)
 
-Tamaños obligatorios: iPhone 6.9" (1320 × 2868) y, como la app también es para iPad, iPad 13" (2064 × 2752).
+Tamaños: los que pida la sección de App Store Connect donde las subes. «iPhone 6.1" o 6.3"» acepta 1206 × 2622 o 1179 × 2556; «iPhone 6.9"», 1320 × 2868. La plantilla exporta los dos. Tracey es solo para iPhone, así que no lleva capturas de iPad.
