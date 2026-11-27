@@ -160,9 +160,10 @@ No account, no sign-in, no ads, no in-app purchases and no network access. The a
 How to test (best on a device, pointing the camera at a sheet of paper on a table):
 1. Tap "Choose Image" and pick any photo (system photo picker, no library permission needed).
 2. Drag, pinch and rotate the image, then tap the lock button. Touch and hold the lock for about a second to unlock; a single tap only shows a hint. This is intentional so a stray touch while drawing can't move the image.
-3. Tap the screen to hide or show the controls. Use the Adjust button to change opacity (works while locked), the filter (Outline turns a photo into line art) and the grid (attached to the image).
-4. Time-lapse: tap the record button and draw for at least 20 seconds, then stop. The video is saved to Photos (add-only permission). It shows only the paper and the drawing, without the reference overlay.
-5. The ⋯ menu has Save to Library, How to Use Tracey, Support and Privacy Policy.
+3. Tap the screen to hide or show the controls. Use the Adjust button to change opacity (works while locked), the filter (Outline turns a photo into line art, with a detail slider and line color), the grid (attached to the image), mirroring and Crop.
+4. Fit to Sheet: with a sheet of paper in view, tap the Fit to Sheet button and the image is scaled and aligned to the paper (on-device Vision rectangle detection; no AR). The snap switch toggles magnetic centering and right-angle rotation.
+5. Time-lapse: tap the record button and draw for at least 20 seconds, then stop. The video is saved to Photos (add-only permission). It shows only the paper and the drawing, without the reference overlay. The speed is set in Settings.
+6. The ⋯ menu has Center Image, Save to Library, How to Use Tracey and Settings (time-lapse speed, alternate app icons, Support and Privacy Policy).
 
 What sets Tracey apart from other tracing apps: a single upfront price with nothing locked behind subscriptions or template catalogs, a press-and-hold lock built for real drawing sessions, reference filters (Black & White, High Contrast, Outline), a grid attached to the image, a library that remembers each reference's position, size and opacity, and a watermark-free time-lapse that records only the paper. The interface is native SwiftUI and is fully localized in English and Spanish, with VoiceOver labels and Dynamic Type support.
 ```
