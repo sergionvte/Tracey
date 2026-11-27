@@ -25,7 +25,11 @@ struct RGB {
 // Same palette as Tools/make-icons.swift
 let top = RGB(0x2A2016), bottom = RGB(0x0E0B08), amber = RGB(0xFFB84D)
 
-func draw(width: Int, height: Int) -> CGImage {
+/// `waveY` is where the wave's center line sits, as a fraction of the height. On iPhone the
+/// product page shows only about the middle half of the 5244×2950 image's width and its top
+/// ~60% (from about 5% to 62% of the height), with the back and share buttons over the top of
+/// that; 0.40 centers the wave in what's left.
+func draw(width: Int, height: Int, waveY: CGFloat) -> CGImage {
     let W = CGFloat(width), H = CGFloat(height)
     let space = CGColorSpace(name: CGColorSpace.sRGB)!
     let ctx = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
@@ -36,7 +40,7 @@ func draw(width: Int, height: Int) -> CGImage {
 
     // Everything scales with the shorter side, so both sizes read the same in the middle
     let unit = min(W, H * 16 / 9) / 16    // one sixteenth of the 16:9 frame's width
-    let cx = W / 2, cy = H / 2
+    let cx = W / 2, cy = H * waveY
 
     // Backdrop
     let base = CGGradient(colorsSpace: space, colors: [top.cg(), bottom.cg()] as CFArray, locations: [0, 1])!
@@ -119,8 +123,9 @@ func write(_ image: CGImage, to url: URL) {
 
 let out = URL(fileURLWithPath: CommandLine.arguments.dropFirst().first ?? "AppStore/Header")
 try! FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
-for (w, h) in [(5244, 2950), (3840, 1646)] {
+// The wide one is shown whole (iPad and Mac), so its wave stays centered
+for (w, h, waveY) in [(5244, 2950, 0.40), (3840, 1646, 0.5)] as [(Int, Int, CGFloat)] {
     let url = out.appendingPathComponent("Tracey-header-\(w)x\(h).png")
-    write(draw(width: w, height: h), to: url)
+    write(draw(width: w, height: h, waveY: waveY), to: url)
     print(url.path)
 }
