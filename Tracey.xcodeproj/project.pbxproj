@@ -402,9 +402,9 @@
 				DEVELOPMENT_TEAM = U7S7N6VUPM;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Tracey shows your camera so you can trace the reference onto paper.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Tracey shows the live camera view under your reference image so you can trace it onto paper, for example a photo of your pet over your sketchbook. Time-lapses you record are made from this view and stay on your device.";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Tracey saves your time-lapses to Photos.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Tracey saves the time-lapse videos you record of your drawings to Photos, so you can watch them or share them later. It only adds videos and never reads your library.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -433,9 +433,9 @@
 				DEVELOPMENT_TEAM = U7S7N6VUPM;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Tracey shows your camera so you can trace the reference onto paper.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Tracey shows the live camera view under your reference image so you can trace it onto paper, for example a photo of your pet over your sketchbook. Time-lapses you record are made from this view and stay on your device.";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Tracey saves your time-lapses to Photos.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Tracey saves the time-lapse videos you record of your drawings to Photos, so you can watch them or share them later. It only adds videos and never reads your library.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

@@ -4,10 +4,16 @@
     "NSCameraUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracey shows the live camera view under your reference image so you can trace it onto paper, for example a photo of your pet over your sketchbook. Time-lapses you record are made from this view and stay on your device."
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tracey muestra tu cámara para que calques la referencia en papel."
+            "value" : "Tracey muestra la cámara en vivo debajo de tu imagen de referencia para que la calques en papel, por ejemplo la foto de tu mascota sobre tu cuaderno. Los time-lapses que grabas se hacen con esta vista y se quedan en tu dispositivo."
           }
         }
       }
@@ -15,10 +21,16 @@
     "NSPhotoLibraryAddUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracey saves the time-lapse videos you record of your drawings to Photos, so you can watch them or share them later. It only adds videos and never reads your library."
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tracey guarda tus time-lapses en Fotos."
+            "value" : "Tracey guarda en Fotos los videos time-lapse que grabas de tus dibujos, para que los veas o los compartas después. Solo agrega videos y nunca lee tu fototeca."
           }
         }
       }
